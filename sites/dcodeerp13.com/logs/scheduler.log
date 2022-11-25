@@ -425,3 +425,28 @@
 2022-11-25 14:48:24,927 INFO scheduler Scheduled Job Start: frappe.email.queue.flush for dcodeerp13.com
 2022-11-25 14:48:25,172 INFO scheduler Scheduled Job Complete: frappe.email.queue.flush for dcodeerp13.com
 2022-11-25 14:49:22,018 DEBUG scheduler Queued events for site dcodeerp13.com
+2022-11-25 14:50:22,325 INFO scheduler Scheduled Job Start: erpnext.manufacturing.doctype.bom_update_log.bom_update_log.resume_bom_cost_update_jobs for dcodeerp13.com
+2022-11-25 14:50:22,340 DEBUG scheduler Queued events for site dcodeerp13.com
+2022-11-25 14:50:22,676 INFO scheduler Scheduled Job Complete: erpnext.manufacturing.doctype.bom_update_log.bom_update_log.resume_bom_cost_update_jobs for dcodeerp13.com
+2022-11-25 14:51:22,658 DEBUG scheduler Queued events for site dcodeerp13.com
+2022-11-25 14:52:22,992 INFO scheduler Scheduled Job Start: erpnext.crm.doctype.social_media_post.social_media_post.process_scheduled_social_media_posts for dcodeerp13.com
+2022-11-25 14:52:23,087 DEBUG scheduler Queued events for site dcodeerp13.com
+2022-11-25 14:52:23,258 INFO scheduler Scheduled Job Complete: erpnext.crm.doctype.social_media_post.social_media_post.process_scheduled_social_media_posts for dcodeerp13.com
+2022-11-25 14:52:23,334 INFO scheduler Scheduled Job Start: erpnext.hr.doctype.interview.interview.send_interview_reminder for dcodeerp13.com
+2022-11-25 14:52:23,664 INFO scheduler Scheduled Job Complete: erpnext.hr.doctype.interview.interview.send_interview_reminder for dcodeerp13.com
+2022-11-25 14:52:23,747 INFO scheduler Scheduled Job Start: erpnext.healthcare.doctype.patient_appointment.patient_appointment.send_appointment_reminder for dcodeerp13.com
+2022-11-25 14:52:24,014 INFO scheduler Scheduled Job Complete: erpnext.healthcare.doctype.patient_appointment.patient_appointment.send_appointment_reminder for dcodeerp13.com
+2022-11-25 14:52:24,094 INFO scheduler Scheduled Job Start: erpnext.projects.doctype.project.project.project_status_update_reminder for dcodeerp13.com
+2022-11-25 14:52:24,469 INFO scheduler Scheduled Job Complete: erpnext.projects.doctype.project.project.project_status_update_reminder for dcodeerp13.com
+2022-11-25 14:52:24,549 INFO scheduler Scheduled Job Start: frappe.monitor.flush for dcodeerp13.com
+2022-11-25 14:52:24,776 INFO scheduler Scheduled Job Complete: frappe.monitor.flush for dcodeerp13.com
+2022-11-25 14:52:24,885 INFO scheduler Scheduled Job Start: frappe.utils.global_search.sync_global_search for dcodeerp13.com
+2022-11-25 14:52:25,131 INFO scheduler Scheduled Job Complete: frappe.utils.global_search.sync_global_search for dcodeerp13.com
+2022-11-25 14:52:25,243 INFO scheduler Scheduled Job Start: frappe.integrations.doctype.razorpay_settings.razorpay_settings.capture_payment for dcodeerp13.com
+2022-11-25 14:52:25,623 INFO scheduler Scheduled Job Complete: frappe.integrations.doctype.razorpay_settings.razorpay_settings.capture_payment for dcodeerp13.com
+2022-11-25 14:52:25,699 INFO scheduler Scheduled Job Start: frappe.email.doctype.email_account.email_account.notify_unreplied for dcodeerp13.com
+2022-11-25 14:52:25,988 INFO scheduler Scheduled Job Complete: frappe.email.doctype.email_account.email_account.notify_unreplied for dcodeerp13.com
+2022-11-25 14:52:26,072 INFO scheduler Scheduled Job Start: frappe.email.doctype.email_account.email_account.pull for dcodeerp13.com
+2022-11-25 14:52:26,370 INFO scheduler Scheduled Job Complete: frappe.email.doctype.email_account.email_account.pull for dcodeerp13.com
+2022-11-25 14:52:26,458 INFO scheduler Scheduled Job Start: frappe.email.queue.flush for dcodeerp13.com
+2022-11-25 14:52:26,733 INFO scheduler Scheduled Job Complete: frappe.email.queue.flush for dcodeerp13.com
