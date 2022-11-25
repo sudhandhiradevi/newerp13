@@ -869,3 +869,9 @@ frappe.exceptions.LinkValidationError: Could not find User Id: mohan27895@gmail.
 15:39:05 Subscribing to channel rq:pubsub:6b1aa86fc1f54fe7903f202ea098066c.eorchids-HP-Laptop-15-bs1xx.27269.home-eorchids-frappe-bench13:default
 15:39:05 *** Listening on home-eorchids-frappe-bench13:default...
 15:39:05 Cleaning registries for queue: home-eorchids-frappe-bench13:default
+15:53:11 home-eorchids-frappe-bench13:default: frappe.utils.background_jobs.execute_job(event=None, is_async=True, job_name='<function update_index_for_path at 0x7fb879f8f640>', kwargs={'path': 'all-item-groups/earring-k2mas'}, method=<function update_index_for_path at 0x7fb879f8f640>, site='dcodeerp13.com', user='Administrator') (e179b93c-5dad-4656-be25-c2e78a704ad1)
+15:53:15 home-eorchids-frappe-bench13:default: Job OK (e179b93c-5dad-4656-be25-c2e78a704ad1)
+15:53:15 Result is kept for 600 seconds
+15:53:15 home-eorchids-frappe-bench13:default: frappe.utils.background_jobs.execute_job(event=None, is_async=True, job_name='frappe.desk.doctype.notification_log.notification_log.make_notification_lo..., kwargs={'doc': {'type': 'Energy Point', 'document_type': 'Customer', 'document_nam..., method='frappe.desk.doctype.notification_log.notification_log.make_notification_lo..., site='dcodeerp13.com', user='Guest') (ad9397b2-82f6-482a-a08a-d74f7ed17463)
+15:53:15 home-eorchids-frappe-bench13:default: Job OK (ad9397b2-82f6-482a-a08a-d74f7ed17463)
+15:53:15 Result is kept for 600 seconds
