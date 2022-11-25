@@ -875,3 +875,12 @@ frappe.exceptions.LinkValidationError: Could not find User Id: mohan27895@gmail.
 15:53:15 home-eorchids-frappe-bench13:default: frappe.utils.background_jobs.execute_job(event=None, is_async=True, job_name='frappe.desk.doctype.notification_log.notification_log.make_notification_lo..., kwargs={'doc': {'type': 'Energy Point', 'document_type': 'Customer', 'document_nam..., method='frappe.desk.doctype.notification_log.notification_log.make_notification_lo..., site='dcodeerp13.com', user='Guest') (ad9397b2-82f6-482a-a08a-d74f7ed17463)
 15:53:15 home-eorchids-frappe-bench13:default: Job OK (ad9397b2-82f6-482a-a08a-d74f7ed17463)
 15:53:15 Result is kept for 600 seconds
+16:06:05 Cleaning registries for queue: home-eorchids-frappe-bench13:long
+16:06:05 Cleaning registries for queue: home-eorchids-frappe-bench13:short
+16:06:45 Cleaning registries for queue: home-eorchids-frappe-bench13:default
+16:33:05 Cleaning registries for queue: home-eorchids-frappe-bench13:short
+16:33:05 Cleaning registries for queue: home-eorchids-frappe-bench13:long
+16:33:45 Cleaning registries for queue: home-eorchids-frappe-bench13:default
+17:00:05 Cleaning registries for queue: home-eorchids-frappe-bench13:long
+17:00:05 Cleaning registries for queue: home-eorchids-frappe-bench13:short
+17:00:46 Cleaning registries for queue: home-eorchids-frappe-bench13:default

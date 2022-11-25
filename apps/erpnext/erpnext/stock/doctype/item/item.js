@@ -9,6 +9,13 @@ frappe.ui.form.on('Item', {
 	
     }
 });
+frappe.ui.form.on('Item', {
+	test2: function(frm,cdt,cdn) {
+        var d = locals[cdt][cdn];
+        frappe.model.set_value(cdt, cdn, 'test3', (d.test1 + d.test2));
+	
+    }
+});
 frappe.ui.form.on("Item", {
 	setup: function(frm) {
 		frm.add_fetch('attribute', 'numeric_values', 'numeric_values');
