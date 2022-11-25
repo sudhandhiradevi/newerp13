@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 
@@ -26,7 +24,7 @@ def get_things_todo(as_list=False):
 		fields=["name", "description"] if as_list else "count(*)",
 		filters=[["ToDo", "status", "=", "Open"]],
 		or_filters=[
-			["ToDo", "owner", "=", frappe.session.user],
+			["ToDo", "allocated_to", "=", frappe.session.user],
 			["ToDo", "assigned_by", "=", frappe.session.user],
 		],
 		as_list=True,
@@ -46,39 +44,3 @@ def get_todays_events(as_list=False):
 	today = nowdate()
 	events = get_events(today, today)
 	return events if as_list else len(events)
-
-
-def get_unseen_likes():
-	"""Returns count of unseen likes"""
-	return frappe.db.sql(
-		"""select count(*) from `tabComment`
-		where
-			comment_type='Like'
-			and modified >= (NOW() - INTERVAL '1' YEAR)
-			and owner is not null and owner!=%(user)s
-			and reference_owner=%(user)s
-			and seen=0
-			""",
-		{"user": frappe.session.user},
-	)[0][0]
-
-
-def get_unread_emails():
-	"returns unread emails for a user"
-
-	return frappe.db.sql(
-		"""\
-		SELECT count(*)
-		FROM `tabCommunication`
-		WHERE communication_type='Communication'
-		AND communication_medium='Email'
-		AND sent_or_received='Received'
-		AND email_status not in ('Spam', 'Trash')
-		AND email_account in (
-			SELECT distinct email_account from `tabUser Email` WHERE parent=%(user)s
-		)
-		AND modified >= (NOW() - INTERVAL '1' YEAR)
-		AND seen=0
-		""",
-		{"user": frappe.session.user},
-	)[0][0]

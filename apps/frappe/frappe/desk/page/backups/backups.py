@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import datetime
 import os
 
@@ -16,12 +14,16 @@ def get_context(context):
 			"%a %b %d %H:%M %Y"
 		)
 
+	def get_encrytion_status(path):
+		if "-enc" in path:
+			return True
+
 	def get_size(path):
 		size = os.path.getsize(path)
 		if size > 1048576:
-			return "{0:.1f}M".format(float(size) / 1048576)
+			return f"{float(size) / 1048576:.1f}M"
 		else:
-			return "{0:.1f}K".format(float(size) / 1024)
+			return f"{float(size) / 1024:.1f}K"
 
 	path = get_site_path("private", "backups")
 	files = [x for x in os.listdir(path) if os.path.isfile(os.path.join(path, x))]
@@ -31,7 +33,12 @@ def get_context(context):
 		cleanup_old_backups(path, files, backup_limit)
 
 	files = [
-		("/backups/" + _file, get_time(os.path.join(path, _file)), get_size(os.path.join(path, _file)))
+		(
+			"/backups/" + _file,
+			get_time(os.path.join(path, _file)),
+			get_encrytion_status(os.path.join(path, _file)),
+			get_size(os.path.join(path, _file)),
+		)
 		for _file in files
 		if _file.endswith("sql.gz")
 	]

@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -119,7 +116,7 @@ def get_result(doc, filters, to_date=None):
 	function = sql_function_map[doc.function]
 
 	if function == "count":
-		fields = ["{function}(*) as result".format(function=function)]
+		fields = [f"{function}(*) as result"]
 	else:
 		fields = [
 			"{function}({based_on}) as result".format(
@@ -201,9 +198,9 @@ def get_cards_for_user(doctype, txt, searchfield, start, page_len, filters):
 	numberCard = DocType("Number Card")
 
 	if txt:
-		search_conditions = [numberCard[field].like("%{txt}%".format(txt=txt)) for field in searchfields]
+		search_conditions = [numberCard[field].like(f"%{txt}%") for field in searchfields]
 
-	condition_query = frappe.db.query.build_conditions(doctype, filters)
+	condition_query = frappe.qb.engine.build_conditions(doctype, filters)
 
 	return (
 		condition_query.select(numberCard.name, numberCard.label, numberCard.document_type)

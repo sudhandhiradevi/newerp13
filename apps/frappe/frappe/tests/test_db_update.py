@@ -1,12 +1,11 @@
-import unittest
-
 import frappe
 from frappe.core.utils import find
 from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import cstr
 
 
-class TestDBUpdate(unittest.TestCase):
+class TestDBUpdate(FrappeTestCase):
 	def test_db_update(self):
 		doctype = "User"
 		frappe.reload_doctype("User", force=True)
@@ -18,7 +17,7 @@ class TestDBUpdate(unittest.TestCase):
 		frappe.db.updatedb(doctype)
 
 		field_defs = get_field_defs(doctype)
-		table_columns = frappe.db.get_table_columns_description("tab{}".format(doctype))
+		table_columns = frappe.db.get_table_columns_description(f"tab{doctype}")
 
 		self.assertEqual(len(field_defs), len(table_columns))
 
@@ -34,7 +33,7 @@ class TestDBUpdate(unittest.TestCase):
 			default = field_def.default if field_def.default is not None else fallback_default
 
 			self.assertEqual(fieldtype, table_column.type)
-			self.assertIn(cstr(table_column.default) or "NULL", [cstr(default), "'{}'".format(default)])
+			self.assertIn(cstr(table_column.default) or "NULL", [cstr(default), f"'{default}'"])
 
 	def test_index_and_unique_constraints(self):
 		doctype = "User"
@@ -93,7 +92,7 @@ def get_fieldtype_from_def(field_def):
 	fieldtuple = frappe.db.type_map.get(field_def.fieldtype, ("", 0))
 	fieldtype = fieldtuple[0]
 	if fieldtype in ("varchar", "datetime", "int"):
-		fieldtype += "({})".format(field_def.length or fieldtuple[1])
+		fieldtype += f"({field_def.length or fieldtuple[1]})"
 	return fieldtype
 
 
@@ -108,10 +107,7 @@ def get_other_fields_meta(meta):
 	default_fields_map = {
 		"name": ("Data", 0),
 		"owner": ("Data", 0),
-		"parent": ("Data", 0),
-		"parentfield": ("Data", 0),
 		"modified_by": ("Data", 0),
-		"parenttype": ("Data", 0),
 		"creation": ("Datetime", 0),
 		"modified": ("Datetime", 0),
 		"idx": ("Int", 8),
@@ -122,8 +118,12 @@ def get_other_fields_meta(meta):
 	if meta.track_seen:
 		optional_fields.append("_seen")
 
+	child_table_fields_map = {}
+	if meta.istable:
+		child_table_fields_map.update({field: ("Data", 0) for field in frappe.db.CHILD_TABLE_COLUMNS})
+
 	optional_fields_map = {field: ("Text", 0) for field in optional_fields}
-	fields = dict(default_fields_map, **optional_fields_map)
+	fields = dict(default_fields_map, **optional_fields_map, **child_table_fields_map)
 	field_map = [
 		frappe._dict({"fieldname": field, "fieldtype": _type, "length": _length})
 		for field, (_type, _length) in fields.items()
@@ -133,5 +133,5 @@ def get_other_fields_meta(meta):
 
 
 def get_table_column(doctype, fieldname):
-	table_columns = frappe.db.get_table_columns_description("tab{}".format(doctype))
+	table_columns = frappe.db.get_table_columns_description(f"tab{doctype}")
 	return find(table_columns, lambda d: d.get("name") == fieldname)

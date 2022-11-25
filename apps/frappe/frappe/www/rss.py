@@ -1,15 +1,13 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
-from __future__ import unicode_literals
-
-from six.moves.urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin
 
 import frappe
 from frappe.utils import cstr, escape_html, get_request_site_address, now
 
 no_cache = 1
-base_template_path = "templates/www/rss.xml"
+base_template_path = "www/rss.xml"
 
 
 def get_context(context):
@@ -31,7 +29,7 @@ def get_context(context):
 		blog.content = escape_html(blog.content or "")
 
 	if blog_list:
-		modified = max((blog["modified"] for blog in blog_list))
+		modified = max(blog["modified"] for blog in blog_list)
 	else:
 		modified = now()
 

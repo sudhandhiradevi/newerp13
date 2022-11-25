@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
+# License: MIT. See LICENSE
 
 import json
 import re
@@ -9,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.core.utils import find
 from frappe.model.document import Document
-from frappe.utils import get_fullname
+from frappe.utils import get_datetime, get_fullname, time_diff_in_hours
 from frappe.utils.user import get_system_managers
 from frappe.utils.verified_command import get_signed_params, verify_request
 
@@ -73,15 +72,15 @@ class PersonalDataDeletionRequest(Document):
 
 		frappe.sendmail(
 			recipients=self.email,
-			subject=_("Confirm Deletion of Data"),
+			subject=_("Confirm Deletion of Account"),
 			template="delete_data_confirmation",
 			args={
 				"email": self.email,
 				"name": self.name,
-				"host_name": frappe.local.site,
+				"host_name": frappe.utils.get_url(),
 				"link": url,
 			},
-			header=[_("Confirm Deletion of Data"), "green"],
+			header=[_("Confirm Deletion of Account"), "green"],
 		)
 
 	def notify_system_managers(self):
@@ -107,6 +106,7 @@ class PersonalDataDeletionRequest(Document):
 		self.validate_data_anonymization()
 		self.disable_user()
 		self.anonymize_data()
+		self.notify_user_after_deletion()
 
 	def anonymize_data(self):
 		return frappe.enqueue_doc(
@@ -116,6 +116,18 @@ class PersonalDataDeletionRequest(Document):
 			queue="long",
 			timeout=3000,
 			now=frappe.flags.in_test,
+		)
+
+	def notify_user_after_deletion(self):
+		frappe.sendmail(
+			recipients=self.email,
+			subject=_("Your account has been deleted"),
+			template="account_deletion_notification",
+			args={
+				"email": self.email,
+				"host_name": frappe.utils.get_url(),
+			},
+			header=[_("Your account has been deleted"), "green"],
 		)
 
 	def add_deletion_steps(self):
@@ -259,6 +271,7 @@ class PersonalDataDeletionRequest(Document):
 
 		frappe.rename_doc("User", email, anon, force=True, show_alert=False)
 		self.db_set("status", "Deleted")
+
 		if commit:
 			frappe.db.commit()
 
@@ -312,6 +325,31 @@ class PersonalDataDeletionRequest(Document):
 			{"name": self.full_name, "email": self.email},
 		)
 
+	@frappe.whitelist()
+	def put_on_hold(self):
+		self.db_set("status", "On Hold")
+
+
+def process_data_deletion_request():
+	auto_account_deletion = frappe.db.get_single_value("Website Settings", "auto_account_deletion")
+	if auto_account_deletion < 1:
+		return
+
+	requests = frappe.get_all(
+		"Personal Data Deletion Request", filters={"status": "Pending Approval"}, pluck="name"
+	)
+
+	for request in requests:
+		doc = frappe.get_doc("Personal Data Deletion Request", request)
+		if time_diff_in_hours(get_datetime(), doc.creation) >= auto_account_deletion:
+			doc.add_comment(
+				"Comment",
+				_(
+					"The User record for this request has been auto-deleted due to inactivity by system admins."
+				),
+			)
+			doc.trigger_data_deletion()
+
 
 def remove_unverified_record():
 	frappe.db.sql(
@@ -328,7 +366,7 @@ def confirm_deletion(email, name, host_name):
 		return
 
 	doc = frappe.get_doc("Personal Data Deletion Request", name)
-	host_name = frappe.local.site
+	host_name = frappe.utils.get_url()
 
 	if doc.status == "Pending Verification":
 		doc.status = "Pending Approval"
@@ -352,4 +390,4 @@ def confirm_deletion(email, name, host_name):
 
 
 def get_pattern(full_match):
-	return re.compile(r"(?<!\.)\b{0}\b(?!\.)".format(re.escape(full_match)))
+	return re.compile(rf"(?<!\.)\b{re.escape(full_match)}\b(?!\.)")

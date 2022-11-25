@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
 
@@ -11,9 +8,24 @@ import frappe.utils
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils.jinja import validate_template
+from frappe.utils.weasyprint import download_pdf, get_html
 
 
 class PrintFormat(Document):
+	def onload(self):
+		templates = frappe.get_all(
+			"Print Format Field Template",
+			fields=["template", "field", "name"],
+			filters={"document_type": self.doc_type},
+		)
+		self.set_onload("print_templates", templates)
+
+	def get_html(self, docname, letterhead=None):
+		return get_html(self.doc_type, docname, self.name, letterhead)
+
+	def download_pdf(self, docname, letterhead=None):
+		return download_pdf(self.doc_type, docname, self.name, letterhead)
+
 	def validate(self):
 		if (
 			self.standard == "Yes"
@@ -43,7 +55,10 @@ class PrintFormat(Document):
 			frappe.throw(_("{0} is required").format(frappe.bold(_("HTML"))), frappe.MandatoryError)
 
 	def extract_images(self):
-		from frappe.core.doctype.file.file import extract_images_from_html
+		from frappe.core.doctype.file.utils import extract_images_from_html
+
+		if self.print_format_builder_beta:
+			return
 
 		if self.format_data:
 			data = json.loads(self.format_data)

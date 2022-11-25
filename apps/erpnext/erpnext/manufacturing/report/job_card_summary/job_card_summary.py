@@ -36,7 +36,7 @@ def get_data(filters):
 		"total_time_in_mins",
 	]
 
-	for field in ["work_order", "workstation", "operation", "company"]:
+	for field in ["work_order", "workstation", "operation", "status", "company"]:
 		if filters.get(field):
 			query_filters[field] = ("in", filters.get(field))
 
@@ -85,8 +85,8 @@ def get_chart_data(job_card_details, filters):
 		open_job_cards.append(periodic_data.get("Open").get(d))
 		completed.append(periodic_data.get("Completed").get(d))
 
-	datasets.append({"name": "Open", "values": open_job_cards})
-	datasets.append({"name": "Completed", "values": completed})
+	datasets.append({"name": _("Open"), "values": open_job_cards})
+	datasets.append({"name": _("Completed"), "values": completed})
 
 	chart = {"data": {"labels": labels, "datasets": datasets}, "type": "bar"}
 

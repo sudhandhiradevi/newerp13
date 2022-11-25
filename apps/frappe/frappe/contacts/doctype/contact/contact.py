@@ -1,20 +1,12 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# License: GNU General Public License v3. See license.txt
-
-from __future__ import unicode_literals
-
-import functools
-
-from past.builtins import cmp
-from six import iteritems
-
+# Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 import frappe
 from frappe import _
 from frappe.contacts.address_and_contact import set_link_title
 from frappe.core.doctype.dynamic_link.dynamic_link import deduplicate_dynamic_links
 from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
-from frappe.utils import cint, cstr, has_gravatar
+from frappe.utils import cstr, has_gravatar
 
 
 class Contact(Document):
@@ -150,10 +142,14 @@ def get_default_contact(doctype, name):
 			dl.link_name=%s and
 			dl.parenttype = "Contact"''',
 		(doctype, name),
+		as_dict=True,
 	)
 
 	if out:
-		return sorted(out, key=functools.cmp_to_key(lambda x, y: cmp(cint(y[1]), cint(x[1]))))[0][0]
+		for contact in out:
+			if contact.is_primary_contact:
+				return contact.parent
+		return out[0].parent
 	else:
 		return None
 
@@ -295,14 +291,14 @@ def get_contact_with_phone_number(number):
 		return
 
 	contacts = frappe.get_all(
-		"Contact Phone", filters=[["phone", "like", "%{0}".format(number)]], fields=["parent"], limit=1
+		"Contact Phone", filters=[["phone", "like", f"%{number}"]], fields=["parent"], limit=1
 	)
 
 	return contacts[0].parent if contacts else None
 
 
 def get_contact_name(email_id):
-	contact = frappe.get_list(
+	contact = frappe.get_all(
 		"Contact Email", filters={"email_id": email_id}, fields=["parent"], limit=1
 	)
 	return contact[0].parent if contact else None

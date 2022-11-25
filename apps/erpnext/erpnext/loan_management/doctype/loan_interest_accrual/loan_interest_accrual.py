@@ -32,7 +32,7 @@ class LoanInterestAccrual(AccountsController):
 			self.update_is_accrued()
 
 		self.make_gl_entries(cancel=1)
-		self.ignore_linked_doctypes = ["GL Entry"]
+		self.ignore_linked_doctypes = ["GL Entry", "Payment Ledger Entry"]
 
 	def update_is_accrued(self):
 		frappe.db.set_value("Repayment Schedule", self.repayment_schedule_name, "is_accrued", 0)
@@ -151,9 +151,6 @@ def make_accrual_interest_entry_for_demand_loans(
 				"name",
 				"total_payment",
 				"total_amount_paid",
-				"debit_adjustment_amount",
-				"credit_adjustment_amount",
-				"refund_amount",
 				"loan_account",
 				"interest_income_account",
 				"loan_amount",

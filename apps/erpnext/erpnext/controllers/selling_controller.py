@@ -311,6 +311,7 @@ class SellingController(StockController):
 									"sales_invoice_item": d.get("sales_invoice_item"),
 									"dn_detail": d.get("dn_detail"),
 									"incoming_rate": p.get("incoming_rate"),
+									"item_row": p,
 								}
 							)
 						)
@@ -334,6 +335,7 @@ class SellingController(StockController):
 							"sales_invoice_item": d.get("sales_invoice_item"),
 							"dn_detail": d.get("dn_detail"),
 							"incoming_rate": d.get("incoming_rate"),
+							"item_row": d,
 						}
 					)
 				)
@@ -428,6 +430,7 @@ class SellingController(StockController):
 							"posting_time": self.get("posting_time") or nowtime(),
 							"qty": qty if cint(self.get("is_return")) else (-1 * qty),
 							"serial_no": d.get("serial_no"),
+							"batch_no": d.get("batch_no"),
 							"company": self.company,
 							"voucher_type": self.doctype,
 							"voucher_no": self.name,

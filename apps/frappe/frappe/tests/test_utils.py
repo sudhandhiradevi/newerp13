@@ -3,21 +3,25 @@
 
 import io
 import json
-import unittest
+import os
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
+from mimetypes import guess_type
 from unittest.mock import patch
 
 import pytz
 from PIL import Image
 
 import frappe
+from frappe.installer import parse_app_name
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import (
 	ceil,
 	evaluate_filters,
 	floor,
 	format_timedelta,
+	get_bench_path,
 	get_url,
 	money_in_words,
 	parse_timedelta,
@@ -37,11 +41,12 @@ from frappe.utils.data import (
 	validate_python_code,
 )
 from frappe.utils.dateutils import get_dates_from_timegrain
-from frappe.utils.image import strip_exif_data
+from frappe.utils.diff import _get_value_from_version, get_version_diff, version_query
+from frappe.utils.image import optimize_image, strip_exif_data
 from frappe.utils.response import json_handler
 
 
-class TestFilters(unittest.TestCase):
+class TestFilters(FrappeTestCase):
 	def test_simple_dict(self):
 		self.assertTrue(evaluate_filters({"doctype": "User", "status": "Open"}, {"status": "Open"}))
 		self.assertFalse(evaluate_filters({"doctype": "User", "status": "Open"}, {"status": "Closed"}))
@@ -99,7 +104,7 @@ class TestFilters(unittest.TestCase):
 		)
 
 
-class TestMoney(unittest.TestCase):
+class TestMoney(FrappeTestCase):
 	def test_money_in_words(self):
 		nums_bhd = [
 			(5000, "BHD Five Thousand only."),
@@ -121,18 +126,18 @@ class TestMoney(unittest.TestCase):
 			self.assertEqual(
 				money_in_words(num[0], "BHD"),
 				num[1],
-				"{0} is not the same as {1}".format(money_in_words(num[0], "BHD"), num[1]),
+				"{} is not the same as {}".format(money_in_words(num[0], "BHD"), num[1]),
 			)
 
 		for num in nums_ngn:
 			self.assertEqual(
 				money_in_words(num[0], "NGN"),
 				num[1],
-				"{0} is not the same as {1}".format(money_in_words(num[0], "NGN"), num[1]),
+				"{} is not the same as {}".format(money_in_words(num[0], "NGN"), num[1]),
 			)
 
 
-class TestDataManipulation(unittest.TestCase):
+class TestDataManipulation(FrappeTestCase):
 	def test_scrub_urls(self):
 		html = """
 			<p>You have a new message from: <b>John</b></p>
@@ -152,16 +157,16 @@ class TestDataManipulation(unittest.TestCase):
 		url = get_url()
 
 		self.assertTrue('<a href="http://test.com">Test link 1</a>' in html)
-		self.assertTrue('<a href="{0}/about">Test link 2</a>'.format(url) in html)
-		self.assertTrue('<a href="{0}/login">Test link 3</a>'.format(url) in html)
-		self.assertTrue('<img src="{0}/assets/frappe/test.jpg">'.format(url) in html)
+		self.assertTrue(f'<a href="{url}/about">Test link 2</a>' in html)
+		self.assertTrue(f'<a href="{url}/login">Test link 3</a>' in html)
+		self.assertTrue(f'<img src="{url}/assets/frappe/test.jpg">' in html)
 		self.assertTrue(
-			"style=\"background-image: url('{0}/assets/frappe/bg.jpg') !important\"".format(url) in html
+			f"style=\"background-image: url('{url}/assets/frappe/bg.jpg') !important\"" in html
 		)
 		self.assertTrue('<a href="mailto:test@example.com">email</a>' in html)
 
 
-class TestFieldCasting(unittest.TestCase):
+class TestFieldCasting(FrappeTestCase):
 	def test_str_types(self):
 		STR_TYPES = (
 			"Data",
@@ -208,7 +213,7 @@ class TestFieldCasting(unittest.TestCase):
 		self.assertIsInstance(cast("Time", value="12:03:34"), timedelta)
 
 
-class TestMathUtils(unittest.TestCase):
+class TestMathUtils(FrappeTestCase):
 	def test_floor(self):
 		from decimal import Decimal
 
@@ -230,7 +235,7 @@ class TestMathUtils(unittest.TestCase):
 		self.assertEqual(ceil(Decimal(29.45)), 30)
 
 
-class TestHTMLUtils(unittest.TestCase):
+class TestHTMLUtils(FrappeTestCase):
 	def test_clean_email_html(self):
 		from frappe.utils.html_utils import clean_email_html
 
@@ -249,8 +254,15 @@ class TestHTMLUtils(unittest.TestCase):
 		self.assertTrue("<h1>Hello</h1>" in clean)
 		self.assertTrue('<a href="http://test.com">text</a>' in clean)
 
+	def test_sanitize_html(self):
+		from frappe.utils.html_utils import sanitize_html
 
-class TestValidationUtils(unittest.TestCase):
+		clean = sanitize_html("<ol data-list='ordered' unknown_attr='xyz'></ol>")
+		self.assertIn("ordered", clean)
+		self.assertNotIn("xyz", clean)
+
+
+class TestValidationUtils(FrappeTestCase):
 	def test_valid_url(self):
 		# Edge cases
 		self.assertFalse(validate_url(""))
@@ -296,10 +308,10 @@ class TestValidationUtils(unittest.TestCase):
 		)
 
 
-class TestImage(unittest.TestCase):
+class TestImage(FrappeTestCase):
 	def test_strip_exif_data(self):
 		original_image = Image.open("../apps/frappe/frappe/tests/data/exif_sample_image.jpg")
-		original_image_content = io.open(
+		original_image_content = open(
 			"../apps/frappe/frappe/tests/data/exif_sample_image.jpg", mode="rb"
 		).read()
 
@@ -309,8 +321,21 @@ class TestImage(unittest.TestCase):
 		self.assertEqual(new_image._getexif(), None)
 		self.assertNotEqual(original_image._getexif(), new_image._getexif())
 
+	def test_optimize_image(self):
+		image_file_path = "../apps/frappe/frappe/tests/data/sample_image_for_optimization.jpg"
+		content_type = guess_type(image_file_path)[0]
+		original_content = open(image_file_path, mode="rb").read()
 
-class TestPythonExpressions(unittest.TestCase):
+		optimized_content = optimize_image(original_content, content_type, max_width=500, max_height=500)
+		optimized_image = Image.open(io.BytesIO(optimized_content))
+		width, height = optimized_image.size
+
+		self.assertLessEqual(width, 500)
+		self.assertLessEqual(height, 500)
+		self.assertLess(len(optimized_content), len(original_content))
+
+
+class TestPythonExpressions(FrappeTestCase):
 	def test_validation_for_good_python_expression(self):
 		valid_expressions = [
 			"foo == bar",
@@ -337,7 +362,49 @@ class TestPythonExpressions(unittest.TestCase):
 			self.assertRaises(frappe.ValidationError, validate_python_code, expr)
 
 
-class TestDateUtils(unittest.TestCase):
+class TestDiffUtils(FrappeTestCase):
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		cls.doc = frappe.get_doc(doctype="Client Script", dt="Client Script", name="test_client_script")
+		cls.doc.insert()
+		cls.doc.script = "2;"
+		cls.doc.save(ignore_version=False)
+		cls.doc.script = "42;"
+		cls.doc.save(ignore_version=False)
+
+		cls.versions = version_query(
+			doctype="Version",
+			txt="",
+			searchfield="name",
+			start=0,
+			page_len=20,
+			filters={"ref_doctype": cls.doc.doctype, "docname": cls.doc.name},
+		)
+
+	@classmethod
+	def tearDownClass(cls):
+		cls.doc.delete()
+
+	def test_version_query(self):
+		self.assertGreaterEqual(len(self.versions), 2)
+
+	def test_get_field_value_from_version(self):
+		latest_version = self.versions[0][0]
+		self.assertEqual("42;", _get_value_from_version(latest_version, fieldname="script")[0])
+		old_version = self.versions[1][0]
+		self.assertEqual("2;", _get_value_from_version(old_version, fieldname="script")[0])
+
+	def test_get_version_diff(self):
+		old_version = self.versions[1][0]
+		latest_version = self.versions[0][0]
+
+		diff = get_version_diff(old_version, latest_version)
+		self.assertIn("-2;", diff)
+		self.assertIn("+42;", diff)
+
+
+class TestDateUtils(FrappeTestCase):
 	def test_first_day_of_week(self):
 		# Monday as start of the week
 		with patch.object(frappe.utils.data, "get_first_day_of_the_week", return_value="Monday"):
@@ -416,7 +483,7 @@ class TestDateUtils(unittest.TestCase):
 			self.assertEqual(d, add_to_date(start_date, years=idx, days=-1))
 
 
-class TestResponse(unittest.TestCase):
+class TestResponse(FrappeTestCase):
 	def test_json_handler(self):
 		class TEST(Enum):
 			ABC = "!@)@)!"
@@ -457,7 +524,7 @@ class TestResponse(unittest.TestCase):
 			json.dumps(BAD_OBJECT, default=json_handler)
 
 
-class TestTimeDeltaUtils(unittest.TestCase):
+class TestTimeDeltaUtils(FrappeTestCase):
 	def test_format_timedelta(self):
 		self.assertEqual(format_timedelta(timedelta(seconds=0)), "0:00:00")
 		self.assertEqual(format_timedelta(timedelta(hours=10)), "10:00:00")
@@ -476,10 +543,138 @@ class TestTimeDeltaUtils(unittest.TestCase):
 		self.assertEqual(parse_timedelta("7 days, 0:32:18"), timedelta(days=7, seconds=1938))
 
 
-class TestXlsxUtils(unittest.TestCase):
+class TestXlsxUtils(FrappeTestCase):
 	def test_unescape(self):
 		from frappe.utils.xlsxutils import handle_html
 
 		val = handle_html("<p>html data &gt;</p>")
 		self.assertIn("html data >", val)
 		self.assertEqual("abc", handle_html("abc"))
+
+
+class TestLinkTitle(FrappeTestCase):
+	def test_link_title_doctypes_in_boot_info(self):
+		"""
+		Test that doctypes are added to link_title_map in boot_info
+		"""
+		custom_doctype = frappe.get_doc(
+			{
+				"doctype": "DocType",
+				"module": "Core",
+				"custom": 1,
+				"fields": [
+					{
+						"label": "Test Field",
+						"fieldname": "test_title_field",
+						"fieldtype": "Data",
+					}
+				],
+				"show_title_field_in_link": 1,
+				"title_field": "test_title_field",
+				"permissions": [{"role": "System Manager", "read": 1}],
+				"name": "Test Custom Doctype for Link Title",
+			}
+		)
+		custom_doctype.insert()
+
+		prop_setter = frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doc_type": "User",
+				"property": "show_title_field_in_link",
+				"property_type": "Check",
+				"doctype_or_field": "DocType",
+				"value": "1",
+			}
+		).insert()
+
+		from frappe.boot import get_link_title_doctypes
+
+		link_title_doctypes = get_link_title_doctypes()
+		self.assertTrue("User" in link_title_doctypes)
+		self.assertTrue("Test Custom Doctype for Link Title" in link_title_doctypes)
+
+		prop_setter.delete()
+		custom_doctype.delete()
+
+	def test_link_titles_on_getdoc(self):
+		"""
+		Test that link titles are added to the doctype on getdoc
+		"""
+		prop_setter = frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doc_type": "User",
+				"property": "show_title_field_in_link",
+				"property_type": "Check",
+				"doctype_or_field": "DocType",
+				"value": "1",
+			}
+		).insert()
+
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"user_type": "Website User",
+				"email": "test_user_for_link_title@example.com",
+				"send_welcome_email": 0,
+				"first_name": "Test User for Link Title",
+			}
+		).insert(ignore_permissions=True)
+
+		todo = frappe.get_doc(
+			{
+				"doctype": "ToDo",
+				"description": "test-link-title-on-getdoc",
+				"allocated_to": user.name,
+			}
+		).insert()
+
+		from frappe.desk.form.load import getdoc
+
+		getdoc("ToDo", todo.name)
+		link_titles = frappe.local.response["_link_titles"]
+
+		self.assertTrue(f"{user.doctype}::{user.name}" in link_titles)
+		self.assertEqual(link_titles[f"{user.doctype}::{user.name}"], user.full_name)
+
+		todo.delete()
+		user.delete()
+		prop_setter.delete()
+
+
+class TestAppParser(FrappeTestCase):
+	def test_app_name_parser(self):
+		bench_path = get_bench_path()
+		frappe_app = os.path.join(bench_path, "apps", "frappe")
+		self.assertEqual("frappe", parse_app_name(frappe_app))
+		self.assertEqual("healthcare", parse_app_name("healthcare"))
+		self.assertEqual("healthcare", parse_app_name("https://github.com/frappe/healthcare.git"))
+		self.assertEqual("healthcare", parse_app_name("git@github.com:frappe/healthcare.git"))
+		self.assertEqual("healthcare", parse_app_name("frappe/healthcare@develop"))
+
+
+class TestIntrospectionMagic(FrappeTestCase):
+	"""Test utils that inspect live objects"""
+
+	def test_get_newargs(self):
+		# `kwargs` is just convention any **varname should work.
+		def f(a, b=2, **args):
+			pass
+
+		safe_kwargs = {"company": "Wind Power", "b": 1}
+		self.assertEqual(frappe.get_newargs(f, safe_kwargs), safe_kwargs)
+
+		unsafe_args = dict(safe_kwargs)
+		unsafe_args.update({"ignore_permissions": True, "flags": {"ignore_mandatory": True}})
+		self.assertEqual(frappe.get_newargs(f, unsafe_args), safe_kwargs)
+
+	def test_strip_off_kwargs_when_not_supported(self):
+		def f(a, b=2):
+			pass
+
+		args = {"company": "Wind Power", "b": 1}
+		self.assertEqual(frappe.get_newargs(f, args), {"b": 1})
+
+		# No args
+		self.assertEqual(frappe.get_newargs(lambda: None, args), {})

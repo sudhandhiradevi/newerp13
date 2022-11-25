@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
 import os
@@ -215,5 +212,5 @@ def has_consumer_access(consumer, update_log):
 			else:
 				return frappe.safe_eval(condition, frappe._dict(doc=doc))
 	except Exception as e:
-		frappe.log_error(title="has_consumer_access error", message=e)
+		consumer.log_error("has_consumer_access error")
 	return False

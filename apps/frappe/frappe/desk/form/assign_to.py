@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 """assign/unassign to ToDo"""
 
@@ -30,10 +28,12 @@ def get(args=None):
 
 	return frappe.get_all(
 		"ToDo",
-		fields=["owner", "name"],
-		filters=dict(
-			reference_type=args.get("doctype"), reference_name=args.get("name"), status=("!=", "Cancelled")
-		),
+		fields=["allocated_to as owner", "name"],
+		filters={
+			"reference_type": args.get("doctype"),
+			"reference_name": args.get("name"),
+			"status": ("!=", "Cancelled"),
+		},
 		limit=5,
 	)
 
@@ -61,7 +61,7 @@ def add(args=None):
 			"reference_type": args["doctype"],
 			"reference_name": args["name"],
 			"status": "Open",
-			"owner": assign_to,
+			"allocated_to": assign_to,
 		}
 
 		if frappe.get_all("ToDo", filters=filters):
@@ -75,7 +75,7 @@ def add(args=None):
 			d = frappe.get_doc(
 				{
 					"doctype": "ToDo",
-					"owner": assign_to,
+					"allocated_to": assign_to,
 					"reference_type": args["doctype"],
 					"reference_name": args["name"],
 					"description": args.get("description"),
@@ -99,12 +99,13 @@ def add(args=None):
 				shared_with_users.append(assign_to)
 
 			# make this document followed by assigned user
-			follow_document(args["doctype"], args["name"], assign_to)
+			if frappe.get_cached_value("User", assign_to, "follow_assigned_documents"):
+				follow_document(args["doctype"], args["name"], assign_to)
 
 			# notify
 			notify_assignment(
 				d.assigned_by,
-				d.owner,
+				d.allocated_to,
 				d.reference_type,
 				d.reference_name,
 				action="ASSIGN",
@@ -137,16 +138,16 @@ def add_multiple(args=None):
 
 
 def close_all_assignments(doctype, name):
-	assignments = frappe.db.get_all(
+	assignments = frappe.get_all(
 		"ToDo",
-		fields=["owner"],
+		fields=["allocated_to"],
 		filters=dict(reference_type=doctype, reference_name=name, status=("!=", "Cancelled")),
 	)
 	if not assignments:
 		return False
 
 	for assign_to in assignments:
-		set_status(doctype, name, assign_to.owner, status="Closed")
+		set_status(doctype, name, assign_to.allocated_to, status="Closed")
 
 	return True
 
@@ -164,7 +165,7 @@ def set_status(doctype, name, assign_to, status="Cancelled"):
 			{
 				"reference_type": doctype,
 				"reference_name": name,
-				"owner": assign_to,
+				"allocated_to": assign_to,
 				"status": ("!=", status),
 			},
 		)
@@ -173,7 +174,7 @@ def set_status(doctype, name, assign_to, status="Cancelled"):
 			todo.status = status
 			todo.save(ignore_permissions=True)
 
-			notify_assignment(todo.assigned_by, todo.owner, todo.reference_type, todo.reference_name)
+			notify_assignment(todo.assigned_by, todo.allocated_to, todo.reference_type, todo.reference_name)
 	except frappe.DoesNotExistError:
 		pass
 
@@ -188,33 +189,35 @@ def clear(doctype, name):
 	"""
 	Clears assignments, return False if not assigned.
 	"""
-	assignments = frappe.db.get_all(
-		"ToDo", fields=["owner"], filters=dict(reference_type=doctype, reference_name=name)
+	assignments = frappe.get_all(
+		"ToDo", fields=["allocated_to"], filters=dict(reference_type=doctype, reference_name=name)
 	)
 	if not assignments:
 		return False
 
 	for assign_to in assignments:
-		set_status(doctype, name, assign_to.owner, "Cancelled")
+		set_status(doctype, name, assign_to.allocated_to, "Cancelled")
 
 	return True
 
 
-def notify_assignment(assigned_by, owner, doc_type, doc_name, action="CLOSE", description=None):
+def notify_assignment(
+	assigned_by, allocated_to, doc_type, doc_name, action="CLOSE", description=None
+):
 	"""
 	Notify assignee that there is a change in assignment
 	"""
-	if not (assigned_by and owner and doc_type and doc_name):
+	if not (assigned_by and allocated_to and doc_type and doc_name):
 		return
 
 	# return if self assigned or user disabled
-	if assigned_by == owner or not frappe.db.get_value("User", owner, "enabled"):
+	if assigned_by == allocated_to or not frappe.db.get_value("User", allocated_to, "enabled"):
 		return
 
 	# Search for email address in description -- i.e. assignee
 	user_name = frappe.get_cached_value("User", frappe.session.user, "full_name")
 	title = get_title(doc_type, doc_name)
-	description_html = "<div>{0}</div>".format(description) if description else None
+	description_html = f"<div>{description}</div>" if description else None
 
 	if action == "CLOSE":
 		subject = _("Your assignment on {0} {1} has been removed by {2}").format(
@@ -235,7 +238,7 @@ def notify_assignment(assigned_by, owner, doc_type, doc_name, action="CLOSE", de
 		"email_content": description_html,
 	}
 
-	enqueue_create_notification(owner, notification_doc)
+	enqueue_create_notification(allocated_to, notification_doc)
 
 
 def format_message_for_assign_to(users):

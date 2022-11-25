@@ -1,9 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# License: See license.txt
-
-from __future__ import unicode_literals
-
-from six import string_types
+# License: MIT. See LICENSE
 
 import frappe
 import frappe.permissions
@@ -26,7 +22,7 @@ def update_feed(doc, method=None):
 		feed = doc.get_feed()
 
 		if feed:
-			if isinstance(feed, string_types):
+			if isinstance(feed, str):
 				feed = {"subject": feed}
 
 			feed = frappe._dict(feed)
@@ -34,13 +30,11 @@ def update_feed(doc, method=None):
 			name = feed.name or doc.name
 
 			# delete earlier feed
-			frappe.db.sql(
-				"""delete from `tabActivity Log`
-				where
-					reference_doctype=%s and reference_name=%s
-					and link_doctype=%s""",
-				(doctype, name, feed.link_doctype),
+			frappe.db.delete(
+				"Activity Log",
+				{"reference_doctype": doctype, "reference_name": name, "link_doctype": feed.link_doctype},
 			)
+
 			frappe.get_doc(
 				{
 					"doctype": "Activity Log",
@@ -80,9 +74,7 @@ def get_feed_match_conditions(user=None, doctype="Comment"):
 	user_permissions = frappe.permissions.get_user_permissions(user)
 	can_read = frappe.get_user().get_can_read()
 
-	can_read_doctypes = [
-		"'{}'".format(dt) for dt in list(set(can_read) - set(list(user_permissions)))
-	]
+	can_read_doctypes = [f"'{dt}'" for dt in list(set(can_read) - set(list(user_permissions)))]
 
 	if can_read_doctypes:
 		conditions += [

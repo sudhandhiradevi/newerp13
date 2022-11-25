@@ -83,13 +83,13 @@ class TestTask(unittest.TestCase):
 					"reference_name": task.name,
 					"description": "Close this task",
 				},
-				fieldname=("owner", "status"),
+				fieldname=("allocated_to", "status"),
 				as_dict=True,
 			)
 
 		assign()
 		todo = get_owner_and_status()
-		self.assertEqual(todo.owner, "test@example.com")
+		self.assertEqual(todo.allocated_to, "test@example.com")
 		self.assertEqual(todo.status, "Open")
 
 		# assignment should be
@@ -97,7 +97,7 @@ class TestTask(unittest.TestCase):
 		task.status = "Completed"
 		task.save()
 		todo = get_owner_and_status()
-		self.assertEqual(todo.owner, "test@example.com")
+		self.assertEqual(todo.allocated_to, "test@example.com")
 		self.assertEqual(todo.status, "Closed")
 
 	def test_overdue(self):

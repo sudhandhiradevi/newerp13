@@ -1,28 +1,19 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import json
-import unittest
 
 import frappe
 from frappe.core.doctype.user.user import generate_keys
 from frappe.event_streaming.doctype.event_producer.event_producer import pull_from_node
 from frappe.frappeclient import FrappeClient
+from frappe.query_builder.utils import db_type_is
+from frappe.tests.test_query_builder import run_only_if
+from frappe.tests.utils import FrappeTestCase
 
 producer_url = "http://test_site_producer:8000"
 
 
-class TestEventProducer(unittest.TestCase):
-	# @classmethod
-	# def setUpClass(cls):
-	# 	frappe.print_sql(True)
-
-	# @classmethod
-	# def tearDownClass(cls):
-	# 	frappe.print_sql(False)
-
+class TestEventProducer(FrappeTestCase):
 	def setUp(self):
 		create_event_producer(producer_url)
 
@@ -52,42 +43,6 @@ class TestEventProducer(unittest.TestCase):
 		producer.delete("ToDo", producer_doc.name)
 		self.pull_producer_data()
 		self.assertFalse(frappe.db.exists("ToDo", producer_doc.name))
-
-	def test_multiple_doctypes_sync(self):
-		producer = get_remote_site()
-
-		# insert todo and note in producer
-		producer_todo = insert_into_producer(producer, "test multiple doc sync")
-		producer_note1 = frappe._dict(doctype="Note", title="test multiple doc sync 1")
-		delete_on_remote_if_exists(producer, "Note", {"title": producer_note1["title"]})
-		frappe.db.delete("Note", {"title": producer_note1["title"]})
-		producer_note1 = producer.insert(producer_note1)
-		producer_note2 = frappe._dict(doctype="Note", title="test multiple doc sync 2")
-		delete_on_remote_if_exists(producer, "Note", {"title": producer_note2["title"]})
-		frappe.db.delete("Note", {"title": producer_note2["title"]})
-		producer_note2 = producer.insert(producer_note2)
-
-		# update in producer
-		producer_todo["description"] = "test multiple doc update sync"
-		producer_todo = producer.update(producer_todo)
-		producer_note1["content"] = "testing update sync"
-		producer_note1 = producer.update(producer_note1)
-
-		producer.delete("Note", producer_note2.name)
-
-		self.pull_producer_data()
-
-		# check inserted
-		self.assertTrue(frappe.db.exists("ToDo", producer_todo.name))
-
-		# check update
-		local_todo = frappe.get_doc("ToDo", producer_todo.name)
-		self.assertEqual(local_todo.description, producer_todo.description)
-		local_note1 = frappe.get_doc("Note", producer_note1.name)
-		self.assertEqual(local_note1.content, producer_note1.content)
-
-		# check delete
-		self.assertFalse(frappe.db.exists("Note", producer_note2.name))
 
 	def test_child_table_sync_with_dependencies(self):
 		producer = get_remote_site()

@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe.model.document import Document
+from frappe.query_builder import DocType
 from frappe.utils import unique
 
 
@@ -16,7 +14,8 @@ class Tag(Document):
 def check_user_tags(dt):
 	"if the user does not have a tags column, then it creates one"
 	try:
-		frappe.db.sql("select `_user_tags` from `tab%s` limit 1" % dt)
+		doctype = DocType(dt)
+		frappe.qb.from_(doctype).select(doctype._user_tags).limit(1).run()
 	except Exception as e:
 		if frappe.db.is_column_missing(e):
 			DocTags(dt).setup()
@@ -51,19 +50,13 @@ def remove_tag(tag, dt, dn):
 @frappe.whitelist()
 def get_tagged_docs(doctype, tag):
 	frappe.has_permission(doctype, throw=True)
-
-	return frappe.db.sql(
-		"""SELECT name
-		FROM `tab{0}`
-		WHERE _user_tags LIKE '%{1}%'""".format(
-			doctype, tag
-		)
-	)
+	doctype = DocType(doctype)
+	return (frappe.qb.from_(doctype).where(doctype._user_tags.like(tag)).select(doctype.name)).run()
 
 
 @frappe.whitelist()
 def get_tags(doctype, txt):
-	tag = frappe.get_list("Tag", filters=[["name", "like", "%{}%".format(txt)]])
+	tag = frappe.get_list("Tag", filters=[["name", "like", f"%{txt}%"]])
 	tags = [t.name for t in tag]
 
 	return sorted(filter(lambda t: t and txt.lower() in t.lower(), list(set(tags))))
@@ -111,7 +104,7 @@ class DocTags:
 			tags = "," + ",".join(tl)
 		try:
 			frappe.db.sql(
-				"update `tab%s` set _user_tags=%s where name=%s" % (self.dt, "%s", "%s"), (tags, dn)
+				"update `tab{}` set _user_tags={} where name={}".format(self.dt, "%s", "%s"), (tags, dn)
 			)
 			doc = frappe.get_doc(self.dt, dn)
 			update_tags(doc, tags)
@@ -142,10 +135,7 @@ def delete_tags_for_document(doc):
 	if not frappe.db.table_exists("Tag Link"):
 		return
 
-	frappe.db.sql(
-		"""DELETE FROM `tabTag Link` WHERE `document_type`=%s AND `document_name`=%s""",
-		(doc.doctype, doc.name),
-	)
+	frappe.db.delete("Tag Link", {"document_type": doc.doctype, "document_name": doc.name})
 
 
 def update_tags(doc, tags):
@@ -153,8 +143,7 @@ def update_tags(doc, tags):
 
 	:param doc: Document to be added to global tags
 	"""
-
-	new_tags = list(set([tag.strip() for tag in tags.split(",") if tag]))
+	new_tags = {tag.strip() for tag in tags.split(",") if tag}
 	existing_tags = [
 		tag.tag
 		for tag in frappe.get_list(
@@ -169,8 +158,6 @@ def update_tags(doc, tags):
 				"doctype": "Tag Link",
 				"document_type": doc.doctype,
 				"document_name": doc.name,
-				"parenttype": doc.doctype,
-				"parent": doc.name,
 				"title": doc.get_title() or "",
 				"tag": tag,
 			}
@@ -205,4 +192,4 @@ def get_documents_for_tag(tag):
 
 @frappe.whitelist()
 def get_tags_list_for_awesomebar():
-	return [t.name for t in frappe.get_list("Tag")]
+	return frappe.get_list("Tag", pluck="name", order_by=None)

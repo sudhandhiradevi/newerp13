@@ -1,10 +1,6 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 """Use blog post test to test user permissions logic"""
-
-import unittest
 
 import frappe
 import frappe.defaults
@@ -21,34 +17,37 @@ from frappe.permissions import (
 	update_permission_property,
 )
 from frappe.test_runner import make_test_records_for_doctype
+from frappe.tests.utils import FrappeTestCase
+from frappe.utils.data import now_datetime
 
 test_dependencies = ["Blogger", "Blog Post", "User", "Contact", "Salutation"]
 
 
-class TestPermissions(unittest.TestCase):
+class TestPermissions(FrappeTestCase):
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		frappe.clear_cache(doctype="Blog Post")
+		user = frappe.get_doc("User", "test1@example.com")
+		user.add_roles("Website Manager")
+		user.add_roles("System Manager")
+
+		user = frappe.get_doc("User", "test2@example.com")
+		user.add_roles("Blogger")
+
+		user = frappe.get_doc("User", "test3@example.com")
+		user.add_roles("Sales User")
+
+		user = frappe.get_doc("User", "testperm@example.com")
+		user.add_roles("Website Manager")
+
 	def setUp(self):
 		frappe.clear_cache(doctype="Blog Post")
-
-		if not frappe.flags.permission_user_setup_done:
-			user = frappe.get_doc("User", "test1@example.com")
-			user.add_roles("Website Manager")
-			user.add_roles("System Manager")
-
-			user = frappe.get_doc("User", "test2@example.com")
-			user.add_roles("Blogger")
-
-			user = frappe.get_doc("User", "test3@example.com")
-			user.add_roles("Sales User")
-
-			user = frappe.get_doc("User", "testperm@example.com")
-			user.add_roles("Website Manager")
-
-			frappe.flags.permission_user_setup_done = True
 
 		reset("Blogger")
 		reset("Blog Post")
 
-		frappe.db.sql("delete from `tabUser Permission`")
+		frappe.db.delete("User Permission")
 
 		frappe.set_user("test1@example.com")
 
@@ -220,6 +219,32 @@ class TestPermissions(unittest.TestCase):
 		doc = frappe.get_doc("Blog Post", "-test-blog-post")
 		self.assertTrue(doc.has_permission("read"))
 
+	def test_set_standard_fields_manually(self):
+		# check that creation and owner cannot be set manually
+		from datetime import timedelta
+
+		fake_creation = now_datetime() + timedelta(days=-7)
+		fake_owner = frappe.db.get_value("User", {"name": ("!=", frappe.session.user)})
+
+		d = frappe.new_doc("ToDo")
+		d.description = "ToDo created via test_set_standard_fields_manually"
+		d.creation = fake_creation
+		d.owner = fake_owner
+		d.save()
+		self.assertNotEqual(d.creation, fake_creation)
+		self.assertNotEqual(d.owner, fake_owner)
+
+	def test_dont_change_standard_constants(self):
+		# check that Document.creation cannot be changed
+		user = frappe.get_doc("User", frappe.session.user)
+		user.creation = now_datetime()
+		self.assertRaises(frappe.CannotChangeConstantError, user.save)
+
+		# check that Document.owner cannot be changed
+		user.reload()
+		user.owner = "Guest"
+		self.assertRaises(frappe.CannotChangeConstantError, user.save)
+
 	def test_set_only_once(self):
 		blog_post = frappe.get_meta("Blog Post")
 		doc = frappe.get_doc("Blog Post", "-test-blog-post-1")
@@ -353,9 +378,9 @@ class TestPermissions(unittest.TestCase):
 		doctype"""
 
 		frappe.set_user("Administrator")
-		frappe.db.sql("DELETE FROM `tabContact`")
-		frappe.db.sql("DELETE FROM `tabContact Email`")
-		frappe.db.sql("DELETE FROM `tabContact Phone`")
+		frappe.db.delete("Contact")
+		frappe.db.delete("Contact Email")
+		frappe.db.delete("Contact Phone")
 
 		reset("Salutation")
 		reset("Contact")
@@ -436,7 +461,7 @@ class TestPermissions(unittest.TestCase):
 			self.assertIn(
 				post.blogger,
 				["_Test Blogger", "_Test Blogger 1"],
-				"A post from {} is not expected.".format(post.blogger),
+				f"A post from {post.blogger} is not expected.",
 			)
 
 	def test_if_owner_permission_overrides_properly(self):
@@ -623,3 +648,56 @@ class TestPermissions(unittest.TestCase):
 
 		# reset the user
 		frappe.set_user(current_user)
+
+	def test_child_permissions(self):
+		frappe.set_user("test3@example.com")
+		self.assertIsInstance(frappe.get_list("DefaultValue", parent_doctype="User", limit=1), list)
+
+		# frappe.get_list
+		self.assertRaises(frappe.PermissionError, frappe.get_list, "DefaultValue")
+		self.assertRaises(frappe.PermissionError, frappe.get_list, "DefaultValue", parent_doctype="ToDo")
+		self.assertRaises(
+			frappe.PermissionError, frappe.get_list, "DefaultValue", parent_doctype="DefaultValue"
+		)
+
+		# frappe.get_doc
+		user = frappe.get_doc("User", frappe.session.user)
+		doc = user.append("defaults")
+		doc.check_permission()
+
+		# false by permlevel
+		doc = user.append("roles")
+		self.assertRaises(frappe.PermissionError, doc.check_permission)
+
+		# false by user permission
+		user = frappe.get_doc("User", "Administrator")
+		doc = user.append("defaults")
+		self.assertRaises(frappe.PermissionError, doc.check_permission)
+
+	def test_select_user(self):
+		"""If test3@example.com is restricted by a User Permission to see only
+		users linked to a certain doctype (in this case: Gender "Female"), he
+		should not be able to query other users (Gender "Male").
+		"""
+		# ensure required genders exist
+		for gender in ("Male", "Female"):
+			if frappe.db.exists("Gender", gender):
+				continue
+
+			frappe.get_doc({"doctype": "Gender", "gender": gender}).insert()
+
+		# asssign gender to test users
+		frappe.db.set_value("User", "test1@example.com", "gender", "Male")
+		frappe.db.set_value("User", "test2@example.com", "gender", "Female")
+		frappe.db.set_value("User", "test3@example.com", "gender", "Female")
+
+		# restrict test3@example.com to see only female users
+		add_user_permission("Gender", "Female", "test3@example.com")
+
+		# become user test3@example.com and see what users he can query
+		frappe.set_user("test3@example.com")
+		users = frappe.get_list("User", pluck="name")
+
+		self.assertNotIn("test1@example.com", users)
+		self.assertIn("test2@example.com", users)
+		self.assertIn("test3@example.com", users)

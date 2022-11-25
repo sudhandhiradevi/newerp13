@@ -5,7 +5,6 @@
 
 erpnext/accounts/               @nextchamp-saqib @deepeshgarg007 @ruthra-kumar
 erpnext/assets/                 @nextchamp-saqib @deepeshgarg007 @ruthra-kumar
-erpnext/erpnext_integrations/   @nextchamp-saqib
 erpnext/loan_management/        @nextchamp-saqib @deepeshgarg007
 erpnext/regional                @nextchamp-saqib @deepeshgarg007 @ruthra-kumar
 erpnext/selling                 @nextchamp-saqib @deepeshgarg007 @ruthra-kumar
@@ -18,16 +17,12 @@ erpnext/manufacturing/          @rohitwaghchaure @s-aga-r
 erpnext/quality_management/     @rohitwaghchaure @s-aga-r
 erpnext/stock/                  @rohitwaghchaure @s-aga-r
 
-
-erpnext/healthcare/             @chillaranand
-erpnext/hr/                     @ruchamahabal
-erpnext/non_profit/             @ruchamahabal
-erpnext/payroll                 @ruchamahabal
+erpnext/crm/                    @NagariaHussain 
+erpnext/education/              @rutwikhdev 
 erpnext/projects/               @ruchamahabal
 
-erpnext/controllers             @deepeshgarg007 @nextchamp-saqib @rohitwaghchaure @marination
-erpnext/patches/                @deepeshgarg007 @nextchamp-saqib @rohitwaghchaure
-erpnext/public/                 @nextchamp-saqib @marination
+erpnext/controllers/            @deepeshgarg007 @nextchamp-saqib @rohitwaghchaure
+erpnext/patches/                @deepeshgarg007 @nextchamp-saqib
 
 .github/                        @ankush
-requirements.txt                @gavindsouza @ankush
+pyproject.toml                  @ankush

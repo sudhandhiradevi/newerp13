@@ -145,13 +145,14 @@ class Subscription(Document):
 		You shouldn't need to call this directly. Use `get_billing_cycle` instead.
 		"""
 		plan_names = [plan.plan for plan in self.plans]
-		billing_info = frappe.db.sql(
-			"select distinct `billing_interval`, `billing_interval_count` "
-			"from `tabSubscription Plan` "
-			"where name in %s",
-			(plan_names,),
-			as_dict=1,
-		)
+
+		subscription_plan = frappe.qb.DocType("Subscription Plan")
+		billing_info = (
+			frappe.qb.from_(subscription_plan)
+			.select(subscription_plan.billing_interval, subscription_plan.billing_interval_count)
+			.distinct()
+			.where(subscription_plan.name.isin(plan_names))
+		).run(as_dict=1)
 
 		return billing_info
 
@@ -368,10 +369,10 @@ class Subscription(Document):
 			if frappe.db.get_value("Supplier", self.party, "tax_withholding_category"):
 				invoice.apply_tds = 1
 
-		# Add party currency to invoice
+		### Add party currency to invoice
 		invoice.currency = get_party_account_currency(self.party_type, self.party, self.company)
 
-		# Add dimensions in invoice for subscription:
+		## Add dimensions in invoice for subscription:
 		accounting_dimensions = get_accounting_dimensions()
 
 		for dimension in accounting_dimensions:
@@ -408,21 +409,25 @@ class Subscription(Document):
 			)
 
 		# Discounts
-		if self.additional_discount_percentage:
-			invoice.additional_discount_percentage = self.additional_discount_percentage
+		if self.is_trialling():
+			invoice.additional_discount_percentage = 100
+		else:
+			if self.additional_discount_percentage:
+				invoice.additional_discount_percentage = self.additional_discount_percentage
 
-		if self.additional_discount_amount:
-			invoice.discount_amount = self.additional_discount_amount
+			if self.additional_discount_amount:
+				invoice.discount_amount = self.additional_discount_amount
 
-		if self.additional_discount_percentage or self.additional_discount_amount:
-			discount_on = self.apply_additional_discount
-			invoice.apply_discount_on = discount_on if discount_on else "Grand Total"
+			if self.additional_discount_percentage or self.additional_discount_amount:
+				discount_on = self.apply_additional_discount
+				invoice.apply_discount_on = discount_on if discount_on else "Grand Total"
 
 		# Subscription period
 		invoice.from_date = self.current_invoice_start
 		invoice.to_date = self.current_invoice_end
 
 		invoice.flags.ignore_mandatory = True
+
 		invoice.set_missing_values()
 		invoice.save()
 
@@ -596,6 +601,9 @@ class Subscription(Document):
 			else:
 				self.set_status_grace_period()
 
+			if getdate() > getdate(self.current_invoice_end):
+				self.update_subscription_period(add_days(self.current_invoice_end, 1))
+
 			# Generate invoices periodically even if current invoice are unpaid
 			if (
 				self.generate_new_invoices_past_due_date
@@ -605,9 +613,6 @@ class Subscription(Document):
 
 				prorate = frappe.db.get_single_value("Subscription Settings", "prorate")
 				self.generate_invoice(prorate)
-
-			if getdate() > getdate(self.current_invoice_end):
-				self.update_subscription_period(add_days(self.current_invoice_end, 1))
 
 	@staticmethod
 	def is_paid(invoice):
@@ -718,9 +723,7 @@ def process(data):
 			frappe.db.commit()
 		except frappe.ValidationError:
 			frappe.db.rollback()
-			frappe.db.begin()
-			frappe.log_error(frappe.get_traceback())
-			frappe.db.commit()
+			subscription.log_error("Subscription failed")
 
 
 @frappe.whitelist()

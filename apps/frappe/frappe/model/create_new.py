@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 """
 Create a new document with defaults set
@@ -24,8 +22,6 @@ def get_new_doc(doctype, parent_doc=None, parentfield=None, as_dict=False):
 		frappe.local.new_doc_templates[doctype] = make_new_doc(doctype)
 
 	doc = copy.deepcopy(frappe.local.new_doc_templates[doctype])
-
-	# doc = make_new_doc(doctype)
 
 	set_dynamic_default_values(doc, parent_doc, parentfield)
 

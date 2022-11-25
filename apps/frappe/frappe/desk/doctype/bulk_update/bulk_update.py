@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -26,7 +23,7 @@ def update(doctype, field, value, condition="", limit=500):
 		frappe.throw(_("; not allowed in condition"))
 
 	docnames = frappe.db.sql_list(
-		"""select name from `tab{0}`{1} limit 0, {2}""".format(doctype, condition, limit)
+		f"""select name from `tab{doctype}`{condition} limit {limit} offset 0"""
 	)
 	data = {}
 	data[field] = value
@@ -46,13 +43,13 @@ def submit_cancel_or_update_docs(doctype, docnames, action="submit", data=None):
 		doc = frappe.get_doc(doctype, d)
 		try:
 			message = ""
-			if action == "submit" and doc.docstatus == 0:
+			if action == "submit" and doc.docstatus.is_draft():
 				doc.submit()
 				message = _("Submitting {0}").format(doctype)
-			elif action == "cancel" and doc.docstatus == 1:
+			elif action == "cancel" and doc.docstatus.is_submitted():
 				doc.cancel()
 				message = _("Cancelling {0}").format(doctype)
-			elif action == "update" and doc.docstatus < 2:
+			elif action == "update" and not doc.docstatus.is_cancelled():
 				doc.update(data)
 				doc.save()
 				message = _("Updating {0}").format(doctype)

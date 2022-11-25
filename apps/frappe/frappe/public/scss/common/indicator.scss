@@ -48,7 +48,7 @@
 	height: 24px;
 }
 
-.indicator-pill::before,
+.indicator-pill:not(.no-indicator-dot)::before,
 .indicator-pill-right::after {
 	content:'';
 	display: inline-table;
@@ -163,9 +163,13 @@
 	@include indicator-pill-color('purple');
 }
 
-.indicator-pill.lightblue,
-.indicator-pill-right.lightblue,
-.indicator-pill-round.lightblue {
+.indicator.light-blue {
+	@include indicator-color('light-blue');
+}
+
+.indicator-pill.light-blue,
+.indicator-pill-right.light-blue,
+.indicator-pill-round.light-blue {
 	@include indicator-pill-color('light-blue');
 }
 

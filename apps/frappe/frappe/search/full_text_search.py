@@ -1,5 +1,5 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
 from whoosh.fields import ID, TEXT, Schema
 from whoosh.index import EmptyIndexError, create_in, open_dir

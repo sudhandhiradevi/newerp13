@@ -1,34 +1,31 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
-
-import unittest
+# Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 
 import frappe
-import frappe.utils
 from frappe.test_runner import make_test_objects
+from frappe.tests.utils import FrappeTestCase
+from frappe.utils import format_date, today
 from frappe.utils.goal import get_monthly_goal_graph_data, get_monthly_results
 
 
-class TestGoal(unittest.TestCase):
+class TestGoal(FrappeTestCase):
 	def setUp(self):
 		make_test_objects("Event", reset=True)
 
 	def tearDown(self):
-		frappe.db.sql("delete from `tabEvent`")
-		# make_test_objects('Event', reset=True)
-		frappe.db.commit()
+		frappe.db.delete("Event")
 
 	def test_get_monthly_results(self):
 		"""Test monthly aggregation values of a field"""
 		result_dict = get_monthly_results(
-			"Event", "subject", "creation", "event_type='Private'", "count"
+			"Event",
+			"subject",
+			"creation",
+			filters={"event_type": "Private"},
+			aggregation="count",
 		)
 
-		from frappe.utils import formatdate, today
-
-		self.assertEqual(result_dict.get(formatdate(today(), "MM-yyyy")), 2)
+		self.assertEqual(result_dict.get(format_date(today(), "MM-yyyy")), 2)
 
 	def test_get_monthly_goal_graph_data(self):
 		"""Test for accurate values in graph data (based on test_get_monthly_results)"""
@@ -45,7 +42,7 @@ class TestGoal(unittest.TestCase):
 			"",
 			"description",
 			"creation",
-			"starts_on = '2014-01-01'",
-			"count",
+			filters={"starts_on": "2014-01-01"},
+			aggregation="count",
 		)
 		self.assertEqual(float(data["data"]["datasets"][0]["values"][-1]), 1)

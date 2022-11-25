@@ -1,14 +1,13 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
-import unittest
+# License: MIT. See LICENSE
+from cryptography.fernet import Fernet
 
 import frappe
-from frappe.utils.password import check_password, passlibctx, update_password
+from frappe.tests.utils import FrappeTestCase
+from frappe.utils.password import check_password, decrypt, encrypt, passlibctx, update_password
 
 
-class TestPassword(unittest.TestCase):
+class TestPassword(FrappeTestCase):
 	def setUp(self):
 		frappe.delete_doc("Email Account", "Test Email Account Password")
 		frappe.delete_doc("Email Account", "Test Email Account Password-new")
@@ -109,6 +108,17 @@ class TestPassword(unittest.TestCase):
 		doc.password = ""
 		doc.save()
 		self.assertEqual(doc.get_password(raise_exception=False), None)
+
+	def test_custom_encryption_key(self):
+		text = "Frappe Framework"
+		custom_encryption_key = Fernet.generate_key().decode()
+
+		encrypted_text = encrypt(text, encryption_key=custom_encryption_key)
+		decrypted_text = decrypt(encrypted_text, encryption_key=custom_encryption_key)
+
+		self.assertEqual(text, decrypted_text)
+
+		pass
 
 
 def get_password_list(doc):

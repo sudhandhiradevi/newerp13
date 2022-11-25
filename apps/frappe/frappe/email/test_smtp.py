@@ -1,13 +1,13 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
 # License: The MIT License
 
-import unittest
-
 import frappe
-from frappe.email.smtp import SMTPServer, get_outgoing_email_account
+from frappe.email.doctype.email_account.email_account import EmailAccount
+from frappe.email.smtp import SMTPServer
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestSMTP(unittest.TestCase):
+class TestSMTP(FrappeTestCase):
 	def test_smtp_ssl_session(self):
 		for port in [None, 0, 465, "465"]:
 			make_server(port, 1, 0)
@@ -18,9 +18,9 @@ class TestSMTP(unittest.TestCase):
 
 	def test_get_email_account(self):
 		existing_email_accounts = frappe.get_all(
-			"Email Account", fields=["name", "enable_outgoing", "default_outgoing", "append_to"]
+			"Email Account", fields=["name", "enable_outgoing", "default_outgoing", "append_to", "use_imap"]
 		)
-		unset_details = {"enable_outgoing": 0, "default_outgoing": 0, "append_to": None}
+		unset_details = {"enable_outgoing": 0, "default_outgoing": 0, "append_to": None, "use_imap": 0}
 		for email_account in existing_email_accounts:
 			frappe.db.set_value("Email Account", email_account["name"], unset_details)
 
@@ -34,23 +34,23 @@ class TestSMTP(unittest.TestCase):
 		# lowest preference given to email account with default incoming enabled
 		create_email_account(
 			email_id="default_outgoing_enabled@gmail.com",
-			password="***",
+			password="password",
 			enable_outgoing=1,
 			default_outgoing=1,
 		)
-		self.assertEqual(get_outgoing_email_account().email_id, "default_outgoing_enabled@gmail.com")
+		self.assertEqual(EmailAccount.find_outgoing().email_id, "default_outgoing_enabled@gmail.com")
 
 		frappe.local.outgoing_email_account = {}
 		# highest preference given to email account with append_to matching
 		create_email_account(
 			email_id="append_to@gmail.com",
-			password="***",
+			password="password",
 			enable_outgoing=1,
 			default_outgoing=1,
 			append_to="Blog Post",
 		)
 		self.assertEqual(
-			get_outgoing_email_account(append_to="Blog Post").email_id, "append_to@gmail.com"
+			EmailAccount.find_outgoing(match_by_doctype="Blog Post").email_id, "append_to@gmail.com"
 		)
 
 		# add back the mail_server
@@ -74,6 +74,7 @@ def create_email_account(email_id, password, enable_outgoing, default_outgoing=0
 		"append_to": append_to,
 		"is_dummy_password": 1,
 		"smtp_server": "localhost",
+		"use_imap": 0,
 	}
 
 	email_account = frappe.new_doc("Email Account")
@@ -84,4 +85,4 @@ def create_email_account(email_id, password, enable_outgoing, default_outgoing=0
 def make_server(port, ssl, tls):
 	server = SMTPServer(server="smtp.gmail.com", port=port, use_ssl=ssl, use_tls=tls)
 
-	server.sess
+	server.session

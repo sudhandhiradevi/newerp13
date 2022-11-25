@@ -129,7 +129,7 @@
    "label": "Print Style"
   },
   {
-   "default": "Modern",
+   "default": "Redesign",
    "fieldname": "print_style",
    "fieldtype": "Link",
    "in_list_view": 1,

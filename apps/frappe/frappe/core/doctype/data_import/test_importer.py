@@ -1,21 +1,18 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
 from frappe.core.doctype.data_import.importer import Importer
 from frappe.tests.test_query_builder import db_type_is, run_only_if
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import format_duration, getdate
 
 doctype_name = "DocType for Import"
 
 
-class TestImporter(unittest.TestCase):
+class TestImporter(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
+		super().setUpClass()
 		create_doctype_if_not_exists(
 			doctype_name,
 		)
@@ -69,24 +66,38 @@ class TestImporter(unittest.TestCase):
 		frappe.local.message_log = []
 		data_import.start_import()
 		data_import.reload()
-		import_log = frappe.parse_json(data_import.import_log)
-		self.assertEqual(import_log[0]["row_indexes"], [2, 3])
-		expected_error = (
-			"Error: <b>Child 1 of DocType for Import</b> Row #1: Value missing for: Child Title"
-		)
-		self.assertEqual(frappe.parse_json(import_log[0]["messages"][0])["message"], expected_error)
-		expected_error = (
-			"Error: <b>Child 1 of DocType for Import</b> Row #2: Value missing for: Child Title"
-		)
-		self.assertEqual(frappe.parse_json(import_log[0]["messages"][1])["message"], expected_error)
 
-		self.assertEqual(import_log[1]["row_indexes"], [4])
-		self.assertEqual(frappe.parse_json(import_log[1]["messages"][0])["message"], "Title is required")
+		import_log = frappe.get_all(
+			"Data Import Log",
+			fields=["row_indexes", "success", "messages", "exception", "docname"],
+			filters={"data_import": data_import.name},
+			order_by="log_index",
+		)
+
+		self.assertEqual(frappe.parse_json(import_log[0]["row_indexes"]), [2, 3])
+		expected_error = (
+			"Error: <strong>Child 1 of DocType for Import</strong> Row #1: Value missing for: Child Title"
+		)
+		self.assertEqual(
+			frappe.parse_json(frappe.parse_json(import_log[0]["messages"])[0])["message"], expected_error
+		)
+		expected_error = (
+			"Error: <strong>Child 1 of DocType for Import</strong> Row #2: Value missing for: Child Title"
+		)
+		self.assertEqual(
+			frappe.parse_json(frappe.parse_json(import_log[0]["messages"])[1])["message"], expected_error
+		)
+
+		self.assertEqual(frappe.parse_json(import_log[1]["row_indexes"]), [4])
+		self.assertEqual(
+			frappe.parse_json(frappe.parse_json(import_log[1]["messages"])[0])["message"],
+			"Title is required",
+		)
 
 	def test_data_import_update(self):
 		existing_doc = frappe.get_doc(
 			doctype=doctype_name,
-			title=frappe.generate_hash(doctype_name, 8),
+			title=frappe.generate_hash(length=8),
 			table_field_1=[{"child_title": "child title to update"}],
 		)
 		existing_doc.save()

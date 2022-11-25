@@ -18,12 +18,12 @@ if click_ctx:
 
 
 class ParallelTestRunner:
-	def __init__(self, app, site, build_number=1, total_builds=1, with_coverage=False):
+	def __init__(self, app, site, build_number=1, total_builds=1, dry_run=False):
 		self.app = app
 		self.site = site
-		self.with_coverage = with_coverage
 		self.build_number = frappe.utils.cint(build_number) or 1
 		self.total_builds = frappe.utils.cint(total_builds)
+		self.dry_run = dry_run
 		self.setup_test_site()
 		self.run_tests()
 
@@ -31,6 +31,9 @@ class ParallelTestRunner:
 		frappe.init(site=self.site)
 		if not frappe.db:
 			frappe.connect()
+
+		if self.dry_run:
+			return
 
 		frappe.flags.in_test = True
 		frappe.clear_cache()
@@ -47,7 +50,7 @@ class ParallelTestRunner:
 
 		if hasattr(test_module, "global_test_dependencies"):
 			for doctype in test_module.global_test_dependencies:
-				make_test_records(doctype)
+				make_test_records(doctype, commit=True)
 
 		elapsed = time.time() - start_time
 		elapsed = click.style(f" ({elapsed:.03}s)", fg="red")
@@ -56,16 +59,17 @@ class ParallelTestRunner:
 	def run_tests(self):
 		self.test_result = ParallelTestResult(stream=sys.stderr, descriptions=True, verbosity=2)
 
-		self.start_coverage()
-
 		for test_file_info in self.get_test_file_list():
 			self.run_tests_for_file(test_file_info)
 
-		self.save_coverage()
 		self.print_result()
 
 	def run_tests_for_file(self, file_info):
 		if not file_info:
+			return
+
+		if self.dry_run:
+			print("running tests from", "/".join(file_info))
 			return
 
 		frappe.set_user("Administrator")
@@ -80,17 +84,17 @@ class ParallelTestRunner:
 	def create_test_dependency_records(self, module, path, filename):
 		if hasattr(module, "test_dependencies"):
 			for doctype in module.test_dependencies:
-				make_test_records(doctype)
+				make_test_records(doctype, commit=True)
 
 		if os.path.basename(os.path.dirname(path)) == "doctype":
 			# test_data_migration_connector.py > data_migration_connector.json
 			test_record_filename = re.sub("^test_", "", filename).replace(".py", ".json")
 			test_record_file_path = os.path.join(path, test_record_filename)
 			if os.path.exists(test_record_file_path):
-				with open(test_record_file_path, "r") as f:
+				with open(test_record_file_path) as f:
 					doc = json.loads(f.read())
 					doctype = doc["name"]
-					make_test_records(doctype)
+					make_test_records(doctype, commit=True)
 
 	def get_module(self, path, filename):
 		app_path = frappe.get_pymodule_path(self.app)
@@ -111,39 +115,53 @@ class ParallelTestRunner:
 			if os.environ.get("CI"):
 				sys.exit(1)
 
-	def start_coverage(self):
-		if self.with_coverage:
-			from coverage import Coverage
-
-			from frappe.coverage import FRAPPE_EXCLUSIONS, STANDARD_EXCLUSIONS, STANDARD_INCLUSIONS
-			from frappe.utils import get_bench_path
-
-			# Generate coverage report only for app that is being tested
-			source_path = os.path.join(get_bench_path(), "apps", self.app)
-			omit = STANDARD_EXCLUSIONS[:]
-
-			if self.app == "frappe":
-				omit.extend(FRAPPE_EXCLUSIONS)
-
-			self.coverage = Coverage(source=[source_path], omit=omit, include=STANDARD_INCLUSIONS)
-			self.coverage.start()
-
-	def save_coverage(self):
-		if not self.with_coverage:
-			return
-		self.coverage.stop()
-		self.coverage.save()
-
 	def get_test_file_list(self):
+		# Load balance based on total # of tests ~ each runner should get roughly same # of tests.
 		test_list = get_all_tests(self.app)
-		split_size = frappe.utils.ceil(len(test_list) / self.total_builds)
-		# [1,2,3,4,5,6] to [[1,2], [3,4], [4,6]] if split_size is 2
-		test_chunks = [test_list[x : x + split_size] for x in range(0, len(test_list), split_size)]
+
+		test_counts = [self.get_test_count(test) for test in test_list]
+		test_chunks = split_by_weight(test_list, test_counts, chunk_count=self.total_builds)
+
 		return test_chunks[self.build_number - 1]
+
+	@staticmethod
+	def get_test_count(test):
+		"""Get approximate count of tests inside a file"""
+		file_name = "/".join(test)
+
+		with open(file_name) as f:
+			test_count = f.read().count("def test_")
+
+		return test_count
+
+
+def split_by_weight(work, weights, chunk_count):
+	"""Roughly split work by respective weight while keep ordering."""
+	expected_weight = sum(weights) // chunk_count
+
+	chunks = [[] for _ in range(chunk_count)]
+
+	chunk_no = 0
+	chunk_weight = 0
+
+	for task, weight in zip(work, weights):
+		if chunk_weight > expected_weight:
+			chunk_weight = 0
+			chunk_no += 1
+			assert chunk_no < chunk_count
+
+		chunks[chunk_no].append(task)
+		chunk_weight += weight
+
+	assert len(work) == sum(len(chunk) for chunk in chunks)
+	assert len(chunks) == chunk_count
+
+	return chunks
 
 
 class ParallelTestResult(unittest.TextTestResult):
 	def startTest(self, test):
+		self.tb_locals = True
 		self._started_at = time.time()
 		super(unittest.TextTestResult, self).startTest(test)
 		test_class = unittest.util.strclass(test.__class__)
@@ -230,7 +248,7 @@ class ParallelTestWithOrchestrator(ParallelTestRunner):
 	- test-completed (<build_id>, <instance_id>)
 	"""
 
-	def __init__(self, app, site, with_coverage=False):
+	def __init__(self, app, site):
 		self.orchestrator_url = os.environ.get("ORCHESTRATOR_URL")
 		if not self.orchestrator_url:
 			click.echo("ORCHESTRATOR_URL environment variable not found!")
@@ -243,7 +261,7 @@ class ParallelTestWithOrchestrator(ParallelTestRunner):
 			click.echo("CI_BUILD_ID environment variable not found!")
 			sys.exit(1)
 
-		ParallelTestRunner.__init__(self, app, site, with_coverage=with_coverage)
+		ParallelTestRunner.__init__(self, app, site)
 
 	def run_tests(self):
 		self.test_status = "ongoing"

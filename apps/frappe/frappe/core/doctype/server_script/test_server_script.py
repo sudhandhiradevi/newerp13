@@ -1,13 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import requests
 
 import frappe
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_site_url
 
 scripts = [
@@ -76,14 +72,24 @@ frappe.method_that_doesnt_exist("do some magic")
 frappe.db.commit()
 """,
 	),
+	dict(
+		name="test_add_index",
+		script_type="DocType Event",
+		doctype_event="Before Save",
+		reference_doctype="ToDo",
+		disabled=1,
+		script="""
+frappe.db.add_index("Todo", ["color", "date"])
+""",
+	),
 ]
 
 
-class TestServerScript(unittest.TestCase):
+class TestServerScript(FrappeTestCase):
 	@classmethod
 	def setUpClass(cls):
-		frappe.db.commit()
-		frappe.db.sql("truncate `tabServer Script`")
+		super().setUpClass()
+		frappe.db.truncate("Server Script")
 		frappe.get_doc("User", "Administrator").add_roles("Script Manager")
 		for script in scripts:
 			script_doc = frappe.get_doc(doctype="Server Script")
@@ -95,7 +101,7 @@ class TestServerScript(unittest.TestCase):
 	@classmethod
 	def tearDownClass(cls):
 		frappe.db.commit()
-		frappe.db.sql("truncate `tabServer Script`")
+		frappe.db.truncate("Server Script")
 		frappe.cache().delete_value("server_script_map")
 
 	def setUp(self):
@@ -121,7 +127,10 @@ class TestServerScript(unittest.TestCase):
 		self.assertEqual(frappe.get_doc("Server Script", "test_return_value").execute_method(), "hello")
 
 	def test_permission_query(self):
-		self.assertTrue("where (1 = 1)" in frappe.db.get_list("ToDo", return_query=1))
+		if frappe.conf.db_type == "mariadb":
+			self.assertTrue("where (1 = 1)" in frappe.db.get_list("ToDo", run=False))
+		else:
+			self.assertTrue("where (1 = '1')" in frappe.db.get_list("ToDo", run=False))
 		self.assertTrue(isinstance(frappe.db.get_list("ToDo"), list))
 
 	def test_attribute_error(self):
@@ -142,6 +151,18 @@ class TestServerScript(unittest.TestCase):
 
 	def test_commit_in_doctype_event(self):
 		server_script = frappe.get_doc("Server Script", "test_todo_commit")
+		server_script.disabled = 0
+		server_script.save()
+
+		self.assertRaises(
+			AttributeError, frappe.get_doc(dict(doctype="ToDo", description="test me")).insert
+		)
+
+		server_script.disabled = 1
+		server_script.save()
+
+	def test_add_index_in_doctype_event(self):
+		server_script = frappe.get_doc("Server Script", "test_add_index")
 		server_script.disabled = 0
 		server_script.save()
 

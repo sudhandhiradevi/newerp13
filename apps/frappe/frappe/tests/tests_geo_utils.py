@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
-
-import unittest
+# License: MIT. See LICENSE
 
 import frappe
 from frappe.geo.utils import get_coords
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestGeoUtils(unittest.TestCase):
+class TestGeoUtils(FrappeTestCase):
 	def setUp(self):
 		self.todo = frappe.get_doc(
 			dict(doctype="ToDo", description="Test description", assigned_by="Administrator")

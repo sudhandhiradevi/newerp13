@@ -1,17 +1,15 @@
 # Copyright (c) 2015, Web Notes Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import absolute_import, print_function, unicode_literals
+# License: MIT. See LICENSE
 
 import cProfile
 import pstats
 import subprocess  # nosec
 import sys
 from functools import wraps
+from io import StringIO
 from os import environ
 
 import click
-from six import StringIO
 
 import frappe
 import frappe.utils
@@ -108,12 +106,22 @@ def call_command(cmd, context):
 
 def get_commands():
 	# prevent circular imports
+	from .redis_utils import commands as redis_commands
 	from .scheduler import commands as scheduler_commands
 	from .site import commands as site_commands
 	from .translate import commands as translate_commands
 	from .utils import commands as utils_commands
 
-	return list(set(scheduler_commands + site_commands + translate_commands + utils_commands))
+	clickable_link = "\x1b]8;;https://frappeframework.com/docs\afrappeframework.com\x1b]8;;\a"
+	all_commands = (
+		scheduler_commands + site_commands + translate_commands + utils_commands + redis_commands
+	)
+
+	for command in all_commands:
+		if not command.help:
+			command.help = f"Refer to {clickable_link}"
+
+	return all_commands
 
 
 commands = get_commands()

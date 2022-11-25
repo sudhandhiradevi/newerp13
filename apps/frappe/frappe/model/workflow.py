@@ -1,15 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import json
-from typing import TYPE_CHECKING, List, Union
-
-from six import string_types
+from typing import TYPE_CHECKING, Union
 
 import frappe
 from frappe import _
+from frappe.model.docstatus import DocStatus
 from frappe.utils import cint
 
 if TYPE_CHECKING:
@@ -43,7 +39,7 @@ def get_workflow_name(doctype):
 @frappe.whitelist()
 def get_transitions(
 	doc: Union["Document", str, dict], workflow: "Workflow" = None, raise_exception: bool = False
-) -> List[dict]:
+) -> list[dict]:
 	"""Return list of possible transitions for the given doc"""
 	from frappe.model.document import Document
 
@@ -133,13 +129,13 @@ def apply_workflow(doc, action):
 		doc.set(next_state.update_field, next_state.update_value)
 
 	new_docstatus = cint(next_state.doc_status)
-	if doc.docstatus == 0 and new_docstatus == 0:
+	if doc.docstatus.is_draft() and new_docstatus == DocStatus.draft():
 		doc.save()
-	elif doc.docstatus == 0 and new_docstatus == 1:
+	elif doc.docstatus.is_draft() and new_docstatus == DocStatus.submitted():
 		doc.submit()
-	elif doc.docstatus == 1 and new_docstatus == 1:
+	elif doc.docstatus.is_submitted() and new_docstatus == DocStatus.submitted():
 		doc.save()
-	elif doc.docstatus == 1 and new_docstatus == 2:
+	elif doc.docstatus.is_submitted() and new_docstatus == DocStatus.cancelled():
 		doc.cancel()
 	else:
 		frappe.throw(_("Illegal Document Status for {0}").format(next_state.state))
@@ -259,17 +255,18 @@ def bulk_workflow_approval(docnames, doctype, action):
 			frappe.db.commit()
 		except Exception as e:
 			if not frappe.message_log:
-				# Exception is  raised manually and not from msgprint or throw
-				message = "{0}".format(e.__class__.__name__)
+				# Exception is	raised manually and not from msgprint or throw
+				message = f"{e.__class__.__name__}"
 				if e.args:
-					message += " : {0}".format(e.args[0])
+					message += f" : {e.args[0]}"
 				message_dict = {"docname": docname, "message": message}
 				failed_transactions[docname].append(message_dict)
 
 			frappe.db.rollback()
 			frappe.log_error(
-				frappe.get_traceback(),
-				"Workflow {0} threw an error for {1} {2}".format(action, doctype, docname),
+				title=f"Workflow {action} threw an error for {doctype} {docname}",
+				reference_doctype="Workflow",
+				reference_name=action,
 			)
 		finally:
 			if not message_dict:
@@ -299,19 +296,19 @@ def bulk_workflow_approval(docnames, doctype, action):
 
 def print_workflow_log(messages, title, doctype, indicator):
 	if messages.keys():
-		msg = "<h4>{0}</h4>".format(title)
+		msg = f"<h4>{title}</h4>"
 
 		for doc in messages.keys():
 			if len(messages[doc]):
-				html = "<details><summary>{0}</summary>".format(frappe.utils.get_link_to_form(doctype, doc))
+				html = f"<details><summary>{frappe.utils.get_link_to_form(doctype, doc)}</summary>"
 				for log in messages[doc]:
 					if log.get("message"):
-						html += "<div class='small text-muted' style='padding:2.5px'>{0}</div>".format(
+						html += "<div class='small text-muted' style='padding:2.5px'>{}</div>".format(
 							log.get("message")
 						)
 				html += "</details>"
 			else:
-				html = "<div>{0}</div>".format(doc)
+				html = f"<div>{doc}</div>"
 			msg += html
 
 		frappe.msgprint(msg, title=_("Workflow Status"), indicator=indicator, is_minimizable=True)
@@ -320,7 +317,7 @@ def print_workflow_log(messages, title, doctype, indicator):
 @frappe.whitelist()
 def get_common_transition_actions(docs, doctype):
 	common_actions = []
-	if isinstance(docs, string_types):
+	if isinstance(docs, str):
 		docs = json.loads(docs)
 	try:
 		for (i, doc) in enumerate(docs, 1):

@@ -1,11 +1,7 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
-
-from six import string_types
 
 import frappe
 from frappe.model.document import Document
@@ -29,7 +25,7 @@ class EmailTemplate(Document):
 		return frappe.render_template(self.response, doc)
 
 	def get_formatted_email(self, doc):
-		if isinstance(doc, string_types):
+		if isinstance(doc, str):
 			doc = json.loads(doc)
 
 		return {"subject": self.get_formatted_subject(doc), "message": self.get_formatted_response(doc)}
@@ -38,7 +34,7 @@ class EmailTemplate(Document):
 @frappe.whitelist()
 def get_email_template(template_name, doc):
 	"""Returns the processed HTML of a email template with the given doc"""
-	if isinstance(doc, string_types):
+	if isinstance(doc, str):
 		doc = json.loads(doc)
 
 	email_template = frappe.get_doc("Email Template", template_name)

@@ -7,7 +7,6 @@ import json
 import frappe
 from frappe.utils import getdate
 from frappe.utils.dateutils import parse_date
-from six import iteritems
 
 
 @frappe.whitelist()
@@ -45,7 +44,7 @@ def create_bank_entries(columns, data, bank_account):
 		if all(item is None for item in d) is True:
 			continue
 		fields = {}
-		for key, value in iteritems(header_map):
+		for key, value in header_map.items():
 			fields.update({key: d[int(value) - 1]})
 
 		try:
@@ -57,7 +56,7 @@ def create_bank_entries(columns, data, bank_account):
 			bank_transaction.submit()
 			success += 1
 		except Exception:
-			frappe.log_error(frappe.get_traceback())
+			bank_transaction.log_error("Bank entry creation failed")
 			errors += 1
 
 	return {"success": success, "errors": errors}

@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 try:
 	from zxcvbn import zxcvbn
@@ -179,9 +177,9 @@ def get_dictionary_match_feedback(match, is_sole_match):
 
 	word = match.get("token")
 	# Variations of the match like UPPERCASES
-	if re.match(scoring.START_UPPER, word):
+	if scoring.START_UPPER.match(word):
 		suggestions.append(_("Capitalization doesn't help very much."))
-	elif re.match(scoring.ALL_UPPER, word):
+	elif scoring.ALL_UPPER.match(word):
 		suggestions.append(_("All-uppercase is almost as easy to guess as all-lowercase."))
 
 	# Match contains l33t speak substitutions

@@ -1,6 +1,6 @@
 from enum import Enum
 from importlib import import_module
-from typing import Any, Callable, Dict, Union, get_type_hints
+from typing import Any, Callable, get_type_hints
 
 from pypika import Query
 from pypika.queries import Column
@@ -18,7 +18,7 @@ class db_type_is(Enum):
 
 
 class ImportMapper:
-	def __init__(self, func_map: Dict[db_type_is, Callable]) -> None:
+	def __init__(self, func_map: dict[db_type_is, Callable]) -> None:
 		self.func_map = func_map
 
 	def __call__(self, *args: Any, **kwds: Any) -> Callable:
@@ -31,7 +31,7 @@ class BuilderIdentificationFailed(Exception):
 		super().__init__("Couldn't guess builder")
 
 
-def get_query_builder(type_of_db: str) -> Union[Postgres, MariaDB]:
+def get_query_builder(type_of_db: str) -> Postgres | MariaDB:
 	"""[return the query builder object]
 
 	Args:
@@ -45,6 +45,12 @@ def get_query_builder(type_of_db: str) -> Union[Postgres, MariaDB]:
 	return picks[db]
 
 
+def get_qb_engine():
+	from frappe.database.query import Engine
+
+	return Engine()
+
+
 def get_attr(method_string):
 	modulename = ".".join(method_string.split(".")[:-1])
 	methodname = method_string.split(".")[-1]
@@ -53,6 +59,10 @@ def get_attr(method_string):
 
 def DocType(*args, **kwargs):
 	return frappe.qb.DocType(*args, **kwargs)
+
+
+def Table(*args, **kwargs):
+	return frappe.qb.Table(*args, **kwargs)
 
 
 def patch_query_execute():
@@ -68,9 +78,11 @@ def patch_query_execute():
 	def prepare_query(query):
 		import inspect
 
+		from frappe.utils.safe_exec import check_safe_sql_query
+
 		param_collector = NamedParameterWrapper()
 		query = query.get_sql(param_wrapper=param_collector)
-		if frappe.flags.in_safe_exec and not query.lower().strip().startswith("select"):
+		if frappe.flags.in_safe_exec and not check_safe_sql_query(query, throw=False):
 			callstack = inspect.stack()
 			if len(callstack) >= 3 and ".py" in callstack[2].filename:
 				# ignore any query builder methods called from python files
@@ -84,7 +96,7 @@ def patch_query_execute():
 				#
 				# if frame2 is server script it wont have a filename and hence
 				# it shouldn't be allowed.
-				# ps. stack() returns `"<unknown>"` as filename.
+				# p.s. stack() returns `"<unknown>"` as filename if not a file.
 				pass
 			else:
 				raise frappe.PermissionError("Only SELECT SQL allowed in scripting")
@@ -98,3 +110,15 @@ def patch_query_execute():
 
 	builder_class.run = execute_query
 	builder_class.walk = prepare_query
+	frappe._qb_patched[frappe.conf.db_type] = True
+
+
+def patch_query_aggregation():
+	"""Patch aggregation functions to frappe.qb"""
+	from frappe.query_builder.functions import _avg, _max, _min, _sum
+
+	frappe.qb.max = _max
+	frappe.qb.min = _min
+	frappe.qb.avg = _avg
+	frappe.qb.sum = _sum
+	frappe._qb_patched[frappe.conf.db_type] = True

@@ -1,16 +1,13 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
+# License: MIT. See LICENSE
 
 import frappe
+from frappe.tests.utils import FrappeTestCase
 
 from .google_settings import get_file_picker_settings
 
 
-class TestGoogleSettings(unittest.TestCase):
+class TestGoogleSettings(FrappeTestCase):
 	def setUp(self):
 		settings = frappe.get_single("Google Settings")
 		settings.client_id = "test_client_id"

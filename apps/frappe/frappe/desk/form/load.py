@@ -1,22 +1,20 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
-from typing import Dict, List, Union
-
-from six.moves.urllib.parse import quote
+from urllib.parse import quote
 
 import frappe
 import frappe.defaults
 import frappe.desk.form.meta
 import frappe.share
 import frappe.utils
-from frappe import _
+from frappe import _, _dict
 from frappe.desk.form.document_follow import is_document_followed
+from frappe.model.utils import is_virtual_doctype
 from frappe.model.utils.user_settings import get_user_settings
 from frappe.permissions import get_doc_permissions
+from frappe.utils.data import cstr
 
 
 @frappe.whitelist()
@@ -33,30 +31,28 @@ def getdoc(doctype, name, user=None):
 	if not name:
 		name = doctype
 
-	if not frappe.db.exists(doctype, name):
+	if not is_virtual_doctype(doctype) and not frappe.db.exists(doctype, name):
 		return []
 
-	try:
-		doc = frappe.get_doc(doctype, name)
-		run_onload(doc)
+	doc = frappe.get_doc(doctype, name)
+	run_onload(doc)
 
-		if not doc.has_permission("read"):
-			frappe.flags.error_message = _("Insufficient Permission for {0}").format(
-				frappe.bold(doctype + " " + name)
-			)
-			raise frappe.PermissionError(("read", doctype, name))
+	if not doc.has_permission("read"):
+		frappe.flags.error_message = _("Insufficient Permission for {0}").format(
+			frappe.bold(doctype + " " + name)
+		)
+		raise frappe.PermissionError(("read", doctype, name))
 
-		doc.apply_fieldlevel_read_permissions()
+	doc.apply_fieldlevel_read_permissions()
 
-		# add file list
-		doc.add_viewed()
-		get_docinfo(doc)
-
-	except Exception:
-		raise
+	# add file list
+	doc.add_viewed()
+	get_docinfo(doc)
 
 	doc.add_seen()
-
+	set_link_titles(doc)
+	if frappe.response.docs is None:
+		frappe.local.response = _dict({"docs": []})
 	frappe.response.docs.append(doc)
 
 
@@ -68,11 +64,9 @@ def getdoctype(doctype, with_parent=False, cached_timestamp=None):
 	parent_dt = None
 
 	# with parent (called from report builder)
-	if with_parent:
-		parent_dt = frappe.model.meta.get_parent_dt(doctype)
-		if parent_dt:
-			docs = get_meta_bundle(parent_dt)
-			frappe.response["parent_dt"] = parent_dt
+	if with_parent and (parent_dt := frappe.model.meta.get_parent_dt(doctype)):
+		docs = get_meta_bundle(parent_dt)
+		frappe.response["parent_dt"] = parent_dt
 
 	if not docs:
 		docs = get_meta_bundle(doctype)
@@ -108,34 +102,83 @@ def get_docinfo(doc=None, doctype=None, name=None):
 		msg for msg in all_communications if msg["communication_type"] != "Automated Message"
 	]
 
-	frappe.response["docinfo"] = {
-		"attachments": get_attachments(doc.doctype, doc.name),
-		"attachment_logs": get_comments(doc.doctype, doc.name, "attachment"),
-		"communications": communications_except_auto_messages,
-		"automated_messages": automated_messages,
-		"comments": get_comments(doc.doctype, doc.name),
-		"total_comments": len(json.loads(doc.get("_comments") or "[]")),
-		"versions": get_versions(doc),
-		"assignments": get_assignments(doc.doctype, doc.name),
-		"assignment_logs": get_comments(doc.doctype, doc.name, "assignment"),
-		"permissions": get_doc_permissions(doc),
-		"shared": frappe.share.get_users(doc.doctype, doc.name),
-		"info_logs": get_comments(doc.doctype, doc.name, comment_type=["Info", "Edit", "Label"]),
-		"share_logs": get_comments(doc.doctype, doc.name, "share"),
-		"like_logs": get_comments(doc.doctype, doc.name, "Like"),
-		"workflow_logs": get_comments(doc.doctype, doc.name, comment_type="Workflow"),
-		"views": get_view_logs(doc.doctype, doc.name),
-		"energy_point_logs": get_point_logs(doc.doctype, doc.name),
-		"additional_timeline_content": get_additional_timeline_content(doc.doctype, doc.name),
-		"milestones": get_milestones(doc.doctype, doc.name),
-		"is_document_followed": is_document_followed(doc.doctype, doc.name, frappe.session.user),
-		"tags": get_tags(doc.doctype, doc.name),
-		"document_email": get_document_email(doc.doctype, doc.name),
-	}
+	docinfo = frappe._dict(user_info={})
+
+	add_comments(doc, docinfo)
+
+	docinfo.update(
+		{
+			"doctype": doc.doctype,
+			"name": doc.name,
+			"attachments": get_attachments(doc.doctype, doc.name),
+			"communications": communications_except_auto_messages,
+			"automated_messages": automated_messages,
+			"total_comments": len(json.loads(doc.get("_comments") or "[]")),
+			"versions": get_versions(doc),
+			"assignments": get_assignments(doc.doctype, doc.name),
+			"permissions": get_doc_permissions(doc),
+			"shared": frappe.share.get_users(doc.doctype, doc.name),
+			"views": get_view_logs(doc.doctype, doc.name),
+			"energy_point_logs": get_point_logs(doc.doctype, doc.name),
+			"additional_timeline_content": get_additional_timeline_content(doc.doctype, doc.name),
+			"milestones": get_milestones(doc.doctype, doc.name),
+			"is_document_followed": is_document_followed(doc.doctype, doc.name, frappe.session.user),
+			"tags": get_tags(doc.doctype, doc.name),
+			"document_email": get_document_email(doc.doctype, doc.name),
+		}
+	)
+
+	update_user_info(docinfo)
+
+	frappe.response["docinfo"] = docinfo
+
+
+def add_comments(doc, docinfo):
+	# divide comments into separate lists
+	docinfo.comments = []
+	docinfo.shared = []
+	docinfo.assignment_logs = []
+	docinfo.attachment_logs = []
+	docinfo.info_logs = []
+	docinfo.like_logs = []
+	docinfo.workflow_logs = []
+
+	comments = frappe.get_all(
+		"Comment",
+		fields=["name", "creation", "content", "owner", "comment_type"],
+		filters={"reference_doctype": doc.doctype, "reference_name": doc.name},
+	)
+
+	for c in comments:
+		if c.comment_type == "Comment":
+			c.content = frappe.utils.markdown(c.content)
+			docinfo.comments.append(c)
+
+		elif c.comment_type in ("Shared", "Unshared"):
+			docinfo.shared.append(c)
+
+		elif c.comment_type in ("Assignment Completed", "Assigned"):
+			docinfo.assignment_logs.append(c)
+
+		elif c.comment_type in ("Attachment", "Attachment Removed"):
+			docinfo.attachment_logs.append(c)
+
+		elif c.comment_type in ("Info", "Edit", "Label"):
+			docinfo.info_logs.append(c)
+
+		elif c.comment_type == "Like":
+			docinfo.like_logs.append(c)
+
+		elif c.comment_type == "Workflow":
+			docinfo.workflow_logs.append(c)
+
+		frappe.utils.add_user_info(c.owner, docinfo.user_info)
+
+	return comments
 
 
 def get_milestones(doctype, name):
-	return frappe.db.get_all(
+	return frappe.get_all(
 		"Milestone",
 		fields=["creation", "owner", "track_field", "value"],
 		filters=dict(reference_type=doctype, reference_name=name),
@@ -170,8 +213,8 @@ def get_communications(doctype, name, start=0, limit=20):
 
 
 def get_comments(
-	doctype: str, name: str, comment_type: Union[str, List[str]] = "Comment"
-) -> List[frappe._dict]:
+	doctype: str, name: str, comment_type: str | list[str] = "Comment"
+) -> list[frappe._dict]:
 	if isinstance(comment_type, list):
 		comment_types = comment_type
 
@@ -206,7 +249,7 @@ def get_comments(
 
 
 def get_point_logs(doctype, docname):
-	return frappe.db.get_all(
+	return frappe.get_all(
 		"Energy Point Log",
 		filters={"reference_doctype": doctype, "reference_name": docname, "type": ["!=", "Review"]},
 		fields=["*"],
@@ -246,7 +289,7 @@ def get_communication_data(
 	if after:
 		# find after a particular date
 		conditions += """
-			AND C.creation > {0}
+			AND C.creation > {}
 		""".format(
 			after
 		)
@@ -298,18 +341,16 @@ def get_communication_data(
 
 
 def get_assignments(dt, dn):
-	cl = frappe.get_all(
+	return frappe.get_all(
 		"ToDo",
-		fields=["name", "owner", "description", "status"],
+		fields=["name", "allocated_to as owner", "description", "status"],
 		filters={
 			"reference_type": dt,
 			"reference_name": dn,
 			"status": ("!=", "Cancelled"),
-			"owner": ("is", "set"),
+			"allocated_to": ("is", "set"),
 		},
 	)
-
-	return cl
 
 
 @frappe.whitelist()
@@ -365,7 +406,7 @@ def get_document_email(doctype, name):
 		return None
 
 	email = email.split("@")
-	return "{0}+{1}+{2}@{3}".format(email[0], quote(doctype), quote(name), email[1])
+	return f"{email[0]}+{quote(doctype)}+{quote(cstr(name))}@{email[1]}"
 
 
 def get_automatic_email_link():
@@ -384,3 +425,84 @@ def get_additional_timeline_content(doctype, docname):
 		contents.extend(frappe.get_attr(method)(doctype, docname) or [])
 
 	return contents
+
+
+def set_link_titles(doc):
+	link_titles = {}
+	link_titles.update(get_title_values_for_link_and_dynamic_link_fields(doc))
+	link_titles.update(get_title_values_for_table_and_multiselect_fields(doc))
+
+	send_link_titles(link_titles)
+
+
+def get_title_values_for_link_and_dynamic_link_fields(doc, link_fields=None):
+	link_titles = {}
+
+	if not link_fields:
+		meta = frappe.get_meta(doc.doctype)
+		link_fields = meta.get_link_fields() + meta.get_dynamic_link_fields()
+
+	for field in link_fields:
+		if not doc.get(field.fieldname):
+			continue
+
+		doctype = field.options if field.fieldtype == "Link" else doc.get(field.options)
+
+		meta = frappe.get_meta(doctype)
+		if not meta or not (meta.title_field and meta.show_title_field_in_link):
+			continue
+
+		link_title = frappe.db.get_value(
+			doctype, doc.get(field.fieldname), meta.title_field, cache=True, order_by=None
+		)
+		link_titles.update({doctype + "::" + doc.get(field.fieldname): link_title})
+
+	return link_titles
+
+
+def get_title_values_for_table_and_multiselect_fields(doc, table_fields=None):
+	link_titles = {}
+
+	if not table_fields:
+		meta = frappe.get_meta(doc.doctype)
+		table_fields = meta.get_table_fields()
+
+	for field in table_fields:
+		if not doc.get(field.fieldname):
+			continue
+
+		for value in doc.get(field.fieldname):
+			link_titles.update(get_title_values_for_link_and_dynamic_link_fields(value))
+
+	return link_titles
+
+
+def send_link_titles(link_titles):
+	"""Append link titles dict in `frappe.local.response`."""
+	if "_link_titles" not in frappe.local.response:
+		frappe.local.response["_link_titles"] = {}
+
+	frappe.local.response["_link_titles"].update(link_titles)
+
+
+def update_user_info(docinfo):
+	for d in docinfo.communications:
+		frappe.utils.add_user_info(d.sender, docinfo.user_info)
+
+	for d in docinfo.shared:
+		frappe.utils.add_user_info(d.user, docinfo.user_info)
+
+	for d in docinfo.assignments:
+		frappe.utils.add_user_info(d.owner, docinfo.user_info)
+
+	for d in docinfo.views:
+		frappe.utils.add_user_info(d.owner, docinfo.user_info)
+
+
+@frappe.whitelist()
+def get_user_info_for_viewers(users):
+	user_info = {}
+	for user in json.loads(users):
+		frappe.utils.add_user_info(user, user_info)
+
+	return user_info

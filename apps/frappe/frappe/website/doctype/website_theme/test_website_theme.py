@@ -1,17 +1,15 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import os
-import unittest
 
 import frappe
+from frappe.tests.utils import FrappeTestCase
 
 from .website_theme import get_scss_paths
 
 
-class TestWebsiteTheme(unittest.TestCase):
+class TestWebsiteTheme(FrappeTestCase):
 	def test_website_theme(self):
 		frappe.delete_doc_if_exists("Website Theme", "test-theme")
 		theme = frappe.get_doc(
@@ -31,7 +29,7 @@ class TestWebsiteTheme(unittest.TestCase):
 		self.assertTrue("fonts.googleapis.com" in css)
 
 	def test_get_scss_paths(self):
-		self.assertIn("frappe/public/scss/website", get_scss_paths())
+		self.assertIn("frappe/public/scss/website.bundle", get_scss_paths())
 
 	def test_imports_to_ignore(self):
 		frappe.delete_doc_if_exists("Website Theme", "test-theme")

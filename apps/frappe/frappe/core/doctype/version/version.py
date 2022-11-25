@@ -1,10 +1,7 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See LICENSE
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
-from typing import Optional
 
 import frappe
 from frappe.model import no_value_fields, table_fields
@@ -12,7 +9,7 @@ from frappe.model.document import Document
 
 
 class Version(Document):
-	def update_version_info(self, old: Optional[Document], new: Document) -> bool:
+	def update_version_info(self, old: Document | None, new: Document) -> bool:
 		"""Update changed info and return true if change contains useful data."""
 		if not old:
 			# Check if doc has some information about creation source like data import

@@ -1,5 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and contributors
-# For license information, please see license.txt
+# License: MIT. See LICENSE
 
 import os
 from contextlib import suppress
@@ -7,16 +7,9 @@ from contextlib import suppress
 import redis
 
 import frappe
+from frappe.utils.data import cstr
 
 redis_server = None
-
-
-@frappe.whitelist()
-def get_pending_tasks_for_doc(doctype, docname):
-	return frappe.db.sql_list(
-		"select name from `tabAsync Task` where status in ('Queued', 'Running') and reference_doctype=%s and reference_name=%s",
-		(doctype, docname),
-	)
 
 
 def publish_progress(percent, title=None, doctype=None, docname=None, description=None):
@@ -81,7 +74,7 @@ def publish_realtime(
 
 	if after_commit:
 		params = [event, message, room]
-		if not params in frappe.local.realtime_log:
+		if params not in frappe.local.realtime_log:
 			frappe.local.realtime_log.append(params)
 	else:
 		emit_via_redis(event, message, room)
@@ -151,7 +144,7 @@ def get_doctype_room(doctype):
 
 
 def get_doc_room(doctype, docname):
-	return f"{frappe.local.site}:doc:{doctype}/{docname}"
+	return f"{frappe.local.site}:doc:{doctype}/{cstr(docname)}"
 
 
 def get_user_room(user):

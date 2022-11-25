@@ -1,18 +1,14 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import set_request
-from frappe.website.render import render
+from frappe.website.serve import get_response
 
 test_dependencies = ["Blog Post"]
 
 
-class TestWebsiteRouteMeta(unittest.TestCase):
+class TestWebsiteRouteMeta(FrappeTestCase):
 	def test_meta_tag_generation(self):
 		blogs = frappe.get_all(
 			"Blog Post", fields=["name", "route"], filters={"published": 1, "route": ("!=", "")}, limit=1
@@ -29,7 +25,7 @@ class TestWebsiteRouteMeta(unittest.TestCase):
 
 		# set request on this route
 		set_request(path=blog.route)
-		response = render()
+		response = get_response()
 
 		self.assertTrue(response.status_code, 200)
 

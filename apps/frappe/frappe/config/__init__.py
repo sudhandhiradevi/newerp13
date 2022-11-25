@@ -1,9 +1,3 @@
-from __future__ import unicode_literals
-
-import json
-
-from six import iteritems
-
 import frappe
 from frappe import _
 from frappe.desk.moduleview import (

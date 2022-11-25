@@ -1,31 +1,30 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import json
-import unittest
+import time
 from unittest.mock import patch
 
 import frappe
 import frappe.exceptions
 from frappe.core.doctype.user.user import (
-	extract_mentions,
+	handle_password_test_fail,
 	reset_password,
 	sign_up,
 	test_password_strength,
 	update_password,
 	verify_password,
 )
+from frappe.desk.notifications import extract_mentions
 from frappe.frappeclient import FrappeClient
 from frappe.model.delete_doc import delete_doc
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_url
 
 user_module = frappe.core.doctype.user.user
 test_records = frappe.get_test_records("User")
 
 
-class TestUser(unittest.TestCase):
+class TestUser(FrappeTestCase):
 	def tearDown(self):
 		# disable password strength test
 		frappe.db.set_value("System Settings", "System Settings", "enable_password_policy", 0)
@@ -64,7 +63,7 @@ class TestUser(unittest.TestCase):
 	def test_delete(self):
 		frappe.get_doc("User", "test@example.com").add_roles("_Test Role 2")
 		self.assertRaises(frappe.LinkExistsError, delete_doc, "Role", "_Test Role 2")
-		frappe.db.sql("""delete from `tabHas Role` where role='_Test Role 2'""")
+		frappe.db.delete("Has Role", {"role": "_Test Role 2"})
 		delete_doc("Role", "_Test Role 2")
 
 		if frappe.db.exists("User", "_test@example.com"):
@@ -81,7 +80,7 @@ class TestUser(unittest.TestCase):
 		delete_doc("User", "_test@example.com")
 
 		self.assertTrue(
-			not frappe.db.sql("""select * from `tabToDo` where owner=%s""", ("_test@example.com",))
+			not frappe.db.sql("""select * from `tabToDo` where allocated_to=%s""", ("_test@example.com",))
 		)
 
 		from frappe.core.doctype.role.test_role import test_records as role_records
@@ -193,6 +192,12 @@ class TestUser(unittest.TestCase):
 		# Score 1; should now fail
 		result = test_password_strength("bee2ve")
 		self.assertEqual(result["feedback"]["password_policy_validation_passed"], False)
+		self.assertRaises(
+			frappe.exceptions.ValidationError, handle_password_test_fail, result["feedback"]
+		)
+		self.assertRaises(
+			frappe.exceptions.ValidationError, handle_password_test_fail, result
+		)  # test backwards compatibility
 
 		# Score 4; should pass
 		result = test_password_strength("Eastern_43A1W")
@@ -202,7 +207,7 @@ class TestUser(unittest.TestCase):
 		user = frappe.get_doc("User", "test@example.com")
 		frappe.flags.in_test = False
 		user.new_password = "password"
-		self.assertRaisesRegex(frappe.exceptions.ValidationError, "Invalid Password", user.save)
+		self.assertRaises(frappe.exceptions.ValidationError, user.save)
 		user.reload()
 		user.new_password = "Eastern_43A1W"
 		user.save()
@@ -259,7 +264,8 @@ class TestUser(unittest.TestCase):
 				<span class="mention" data-id="Team" data-value="Team" data-is-group="true" data-denotation-char="@">
 					<span><span class="ql-mention-denotation-char">@</span>Team</span>
 				</span> and
-				<span class="mention" data-id="Unknown Team" data-value="Unknown Team" data-is-group="true" data-denotation-char="@">
+				<span class="mention" data-id="Unknown Team" data-value="Unknown Team" data-is-group="true"
+				data-denotation-char="@">
 					<span><span class="ql-mention-denotation-char">@</span>Unknown Team</span>
 				</span><!-- this should be ignored-->
 				please check
@@ -368,7 +374,7 @@ class TestUser(unittest.TestCase):
 		self.assertEqual(update_password(new_password, key=test_user.reset_password_key), "/app")
 		self.assertEqual(
 			update_password(new_password, key="wrong_key"),
-			"The Link specified has either been used before or Invalid",
+			"The reset password link has either been used before or is invalid",
 		)
 
 		# password verification should fail with old password
@@ -377,7 +383,6 @@ class TestUser(unittest.TestCase):
 
 		# reset password
 		update_password(old_password, old_password=new_password)
-
 		self.assertRaisesRegex(
 			frappe.exceptions.ValidationError, "Invalid key type", update_password, "test", 1, ["like", "%"]
 		)
@@ -437,7 +442,22 @@ class TestUser(unittest.TestCase):
 			[m.get("module_name") for m in get_modules_from_all_apps()],
 		)
 
+	def test_reset_password_link_expiry(self):
+		new_password = "new_password"
+		# set the reset password expiry to 1 second
+		frappe.db.set_value(
+			"System Settings", "System Settings", "reset_password_link_expiry_duration", 1
+		)
+		frappe.set_user("testpassword@example.com")
+		test_user = frappe.get_doc("User", "testpassword@example.com")
+		test_user.reset_password()
+		time.sleep(1)  # sleep for 1 sec to expire the reset link
+		self.assertEqual(
+			update_password(new_password, key=test_user.reset_password_key),
+			"The reset password link has been expired",
+		)
+
 
 def delete_contact(user):
-	frappe.db.sql("DELETE FROM `tabContact` WHERE `email_id`= %s", user)
-	frappe.db.sql("DELETE FROM `tabContact Email` WHERE `email_id`= %s", user)
+	frappe.db.delete("Contact", {"email_id": user})
+	frappe.db.delete("Contact Email", {"email_id": user})

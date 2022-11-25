@@ -1,25 +1,23 @@
-# Copyright (c) 2017, Frappe Technologies Pvt. Ltd. and Contributors
-# License: GNU General Public License v3. See license.txt
-from __future__ import unicode_literals
+# Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 
 import base64
 import os
-import unittest
 
-from six import PY3
-
+import frappe
 from frappe import safe_decode
+from frappe.email.doctype.email_queue.email_queue import QueueBuilder, SendMailContext
 from frappe.email.email_body import (
 	get_email,
 	get_header,
 	inline_style_in_html,
 	replace_filename_with_cid,
 )
-from frappe.email.queue import get_email_queue, prepare_message
 from frappe.email.receive import Email
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestEmailBody(unittest.TestCase):
+class TestEmailBody(FrappeTestCase):
 	def setUp(self):
 		email_html = """
 <div>
@@ -54,39 +52,34 @@ This is the text version of this email
 		)
 
 	def test_prepare_message_returns_already_encoded_string(self):
+		uni_chr1 = chr(40960)
+		uni_chr2 = chr(1972)
 
-		if PY3:
-			uni_chr1 = chr(40960)
-			uni_chr2 = chr(1972)
-		else:
-			uni_chr1 = unichr(40960)
-			uni_chr2 = unichr(1972)
-
-		email = get_email_queue(
+		QueueBuilder(
 			recipients=["test@example.com"],
 			sender="me@example.com",
 			subject="Test Subject",
-			content="<h1>" + uni_chr1 + "abcd" + uni_chr2 + "</h1>",
-			formatted="<h1>" + uni_chr1 + "abcd" + uni_chr2 + "</h1>",
+			message=f"<h1>{uni_chr1}abcd{uni_chr2}</h1>",
 			text_content="whatever",
-		)
-		result = prepare_message(email=email, recipient="test@test.com", recipients_list=[])
+		).process()
+		queue_doc = frappe.get_last_doc("Email Queue")
+		mail_ctx = SendMailContext(queue_doc=queue_doc)
+		result = mail_ctx.build_message(recipient_email="test@test.com")
 		self.assertTrue(b"<h1>=EA=80=80abcd=DE=B4</h1>" in result)
 
 	def test_prepare_message_returns_cr_lf(self):
-		email = get_email_queue(
+		QueueBuilder(
 			recipients=["test@example.com"],
 			sender="me@example.com",
 			subject="Test Subject",
-			content="<h1>\n this is a test of newlines\n" + "</h1>",
-			formatted="<h1>\n this is a test of newlines\n" + "</h1>",
+			message="<h1>\n this is a test of newlines\n" + "</h1>",
 			text_content="whatever",
-		)
-		result = safe_decode(prepare_message(email=email, recipient="test@test.com", recipients_list=[]))
-		if PY3:
-			self.assertTrue(result.count("\n") == result.count("\r"))
-		else:
-			self.assertTrue(True)
+		).process()
+		queue_doc = frappe.get_last_doc("Email Queue")
+		mail_ctx = SendMailContext(queue_doc=queue_doc)
+		result = safe_decode(mail_ctx.build_message(recipient_email="test@test.com"))
+
+		self.assertTrue(result.count("\n") == result.count("\r"))
 
 	def test_image(self):
 		img_signature = """
@@ -137,7 +130,7 @@ w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
 		processed_message = """
 			<div>
-				<img src="cid:{0}" alt="test" />
+				<img src="cid:{}" alt="test" />
 				<img  />
 			</div>
 		""".format(

@@ -5,7 +5,6 @@ import copy
 
 import frappe
 from frappe import _
-from six import iteritems
 
 from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
 
@@ -48,7 +47,7 @@ def get_incorrect_serial_nos(serial_nos_data):
 		{"qty": 0, "valuation_rate": 0, "serial_no": frappe.bold(_("Balance"))}
 	)
 
-	for serial_no, data in iteritems(serial_nos_data):
+	for serial_no, data in serial_nos_data.items():
 		total_dict = frappe._dict({"qty": 0, "valuation_rate": 0, "serial_no": frappe.bold(_("Total"))})
 
 		if check_incorrect_serial_data(data, total_dict):
@@ -107,7 +106,7 @@ def get_stock_ledger_entries(report_filters):
 		"Stock Ledger Entry",
 		fields=fields,
 		filters=filters,
-		order_by="timestamp(posting_date, posting_time) asc, creation asc",
+		order_by="posting_date asc, posting_time asc, creation asc",
 	)
 
 

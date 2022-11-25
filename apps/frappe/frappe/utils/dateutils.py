@@ -1,11 +1,7 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import datetime
-
-from six import string_types
 
 import frappe
 import frappe.defaults
@@ -46,7 +42,7 @@ def user_to_str(date, date_format=None):
 	try:
 		return datetime.datetime.strptime(date, dateformats[date_format]).strftime("%Y-%m-%d")
 	except ValueError:
-		raise ValueError("Date %s must be in format %s" % (date, date_format))
+		raise ValueError(f"Date {date} must be in format {date_format}")
 
 
 def parse_date(date):
@@ -90,7 +86,7 @@ def get_user_date_format():
 def datetime_in_user_format(date_time):
 	if not date_time:
 		return ""
-	if isinstance(date_time, string_types):
+	if isinstance(date_time, str):
 		date_time = get_datetime(date_time)
 	from frappe.utils import formatdate
 

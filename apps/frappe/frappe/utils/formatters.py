@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import datetime
 import re
@@ -21,6 +19,8 @@ from frappe.utils import (
 	format_timedelta,
 	formatdate,
 )
+
+BLOCK_TAGS_PATTERN = re.compile(r"(<br|<div|<p)")
 
 
 def format_value(value, df=None, doc=None, currency=None, translated=False, format=None):
@@ -96,19 +96,24 @@ def format_value(value, df=None, doc=None, currency=None, translated=False, form
 		return fmt_money(value, precision=precision, currency=currency)
 
 	elif df.get("fieldtype") == "Percent":
-		return "{}%".format(flt(value, 2))
+		return f"{flt(value, 2)}%"
 
 	elif df.get("fieldtype") in ("Text", "Small Text"):
-		if not re.search(r"(<br|<div|<p)", value):
+		if not BLOCK_TAGS_PATTERN.search(value):
 			return frappe.safe_decode(value).replace("\n", "<br>")
 
 	elif df.get("fieldtype") == "Markdown Editor":
 		return frappe.utils.markdown(value)
 
 	elif df.get("fieldtype") == "Table MultiSelect":
+		values = []
 		meta = frappe.get_meta(df.options)
 		link_field = [df for df in meta.fields if df.fieldtype == "Link"][0]
-		values = [v.get(link_field.fieldname, "asdf") for v in value]
+		for v in value:
+			v.update({"__link_titles": doc.get("__link_titles")})
+			formatted_value = frappe.format_value(v.get(link_field.fieldname, ""), link_field, v)
+			values.append(formatted_value)
+
 		return ", ".join(values)
 
 	elif df.get("fieldtype") == "Duration":
@@ -116,6 +121,21 @@ def format_value(value, df=None, doc=None, currency=None, translated=False, form
 		return format_duration(value, hide_days)
 
 	elif df.get("fieldtype") == "Text Editor":
-		return "<div class='ql-snow'>{}</div>".format(value)
+		return f"<div class='ql-snow'>{value}</div>"
+
+	elif df.get("fieldtype") in ["Link", "Dynamic Link"]:
+		if not doc or not doc.get("__link_titles") or not df.options:
+			return value
+
+		doctype = df.options
+		if df.get("fieldtype") == "Dynamic Link":
+			if not df.parent:
+				return value
+
+			meta = frappe.get_meta(df.parent)
+			_field = meta.get_field(df.options)
+			doctype = _field.options
+
+		return doc.__link_titles.get(f"{doctype}::{value}", value)
 
 	return value

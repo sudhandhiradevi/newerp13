@@ -1,14 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
-import frappe
+# License: MIT. See LICENSE
+from frappe.tests.utils import FrappeTestCase
 
 # test_records = frappe.get_test_records('Language')
 
 
-class TestLanguage(unittest.TestCase):
+class TestLanguage(FrappeTestCase):
 	pass

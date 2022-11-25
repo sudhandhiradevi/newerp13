@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# Copyright (c) 2022, Frappe Technologies and contributors
+# License: MIT. See LICENSE
 
 import json
 
@@ -11,21 +8,22 @@ from frappe import _
 from frappe.config import get_modules_from_all_apps_for_user
 from frappe.model.document import Document
 from frappe.modules.export_file import export_to_files
+from frappe.query_builder import DocType
 
 
 class Dashboard(Document):
 	def on_update(self):
 		if self.is_default:
 			# make all other dashboards non-default
-			frappe.db.sql(
-				"""update
-				tabDashboard set is_default = 0 where name != %s""",
-				self.name,
-			)
+			DashBoard = DocType("Dashboard")
+
+			frappe.qb.update(DashBoard).set(DashBoard.is_default, 0).where(
+				DashBoard.name != self.name
+			).run()
 
 		if frappe.conf.developer_mode and self.is_standard:
 			export_to_files(
-				record_list=[["Dashboard", self.name, self.module + " Dashboard"]], record_module=self.module
+				record_list=[["Dashboard", self.name, f"{self.module} Dashboard"]], record_module=self.module
 			)
 
 	def validate(self):
@@ -117,7 +115,7 @@ def get_non_standard_warning_message(non_standard_docs_map):
 	message = _("""Please set the following documents in this Dashboard as standard first.""")
 
 	def get_html(docs, doctype):
-		html = "<p>{}</p>".format(frappe.bold(doctype))
+		html = f"<p>{frappe.bold(doctype)}</p>"
 		for doc in docs:
 			html += '<div><a href="/app/Form/{doctype}/{doc}">{doc}</a></div>'.format(
 				doctype=doctype, doc=doc

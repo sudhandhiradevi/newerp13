@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import logging
 import os
 
-from six import iteritems
 from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.local import LocalManager
 from werkzeug.middleware.profiler import ProfilerMiddleware
@@ -21,20 +18,22 @@ import frappe.monitor
 import frappe.rate_limiter
 import frappe.recorder
 import frappe.utils.response
-import frappe.website.render
 from frappe import _
 from frappe.core.doctype.comment.comment import update_comments_in_parent_after_request
 from frappe.middlewares import StaticDataMiddleware
-from frappe.utils import get_site_name, sanitize_html
+from frappe.utils import cint, get_site_name, sanitize_html
 from frappe.utils.error import make_error_snapshot
+from frappe.website.serve import get_response
 
-local_manager = LocalManager([frappe.local])
+local_manager = LocalManager(frappe.local)
 
 _site = None
 _sites_path = os.environ.get("SITES_PATH", ".")
+SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
+UNSAFE_HTTP_METHODS = ("POST", "PUT", "DELETE", "PATCH")
 
 
-class RequestContext(object):
+class RequestContext:
 	def __init__(self, environ):
 		self.request = Request(environ)
 
@@ -45,8 +44,9 @@ class RequestContext(object):
 		frappe.destroy()
 
 
+@local_manager.middleware
 @Request.application
-def application(request):
+def application(request: Request):
 	response = None
 
 	try:
@@ -75,16 +75,13 @@ def application(request):
 			response = frappe.utils.response.download_private_file(request.path)
 
 		elif request.method in ("GET", "HEAD", "POST"):
-			response = frappe.website.render.render()
+			response = get_response()
 
 		else:
 			raise NotFound
 
 	except HTTPException as e:
 		return e
-
-	except frappe.SessionStopped as e:
-		response = frappe.utils.response.handle_session_stopped()
 
 	except Exception as e:
 		response = handle_exception(e)
@@ -118,16 +115,39 @@ def init_request(request):
 		# site does not exist
 		raise NotFound
 
-	if frappe.local.conf.get("maintenance_mode"):
+	if frappe.local.conf.maintenance_mode:
 		frappe.connect()
-		raise frappe.SessionStopped("Session Stopped")
+		if frappe.local.conf.allow_reads_during_maintenance:
+			setup_read_only_mode()
+		else:
+			raise frappe.SessionStopped("Session Stopped")
 	else:
 		frappe.connect(set_admin_as_user=False)
+
+	request.max_content_length = cint(frappe.local.conf.get("max_file_size")) or 10 * 1024 * 1024
 
 	make_form_dict(request)
 
 	if request.method != "OPTIONS":
 		frappe.local.http_request = frappe.auth.HTTPRequest()
+
+
+def setup_read_only_mode():
+	"""During maintenance_mode reads to DB can still be performed to reduce downtime. This
+	function sets up read only mode
+
+	- Setting global flag so other pages, desk and database can know that we are in read only mode.
+	- Setup read only database access either by:
+	    - Connecting to read replica if one exists
+	    - Or setting up read only SQL transactions.
+	"""
+	frappe.flags.read_only = True
+
+	# If replica is available then just connect replica, else setup read only transaction.
+	if frappe.conf.read_from_replica:
+		frappe.connect_replica()
+	else:
+		frappe.db.begin(read_only=True)
 
 
 def log_request(request, response):
@@ -158,35 +178,45 @@ def process_response(response):
 		response.headers.extend(frappe.local.rate_limiter.headers())
 
 	# CORS headers
-	if hasattr(frappe.local, "conf") and frappe.conf.allow_cors:
+	if hasattr(frappe.local, "conf"):
 		set_cors_headers(response)
 
 
 def set_cors_headers(response):
-	origin = frappe.request.headers.get("Origin")
-	allow_cors = frappe.conf.allow_cors
-	if not (origin and allow_cors):
+	if not (
+		(allowed_origins := frappe.conf.allow_cors)
+		and (request := frappe.local.request)
+		and (origin := request.headers.get("Origin"))
+	):
 		return
 
-	if allow_cors != "*":
-		if not isinstance(allow_cors, list):
-			allow_cors = [allow_cors]
+	if allowed_origins != "*":
+		if not isinstance(allowed_origins, list):
+			allowed_origins = [allowed_origins]
 
-		if origin not in allow_cors:
+		if origin not in allowed_origins:
 			return
 
-	response.headers.extend(
-		{
-			"Access-Control-Allow-Origin": origin,
-			"Access-Control-Allow-Credentials": "true",
-			"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-			"Access-Control-Allow-Headers": (
-				"Authorization,DNT,X-Mx-ReqToken,"
-				"Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,"
-				"Cache-Control,Content-Type"
-			),
-		}
-	)
+	cors_headers = {
+		"Access-Control-Allow-Credentials": "true",
+		"Access-Control-Allow-Origin": origin,
+		"Vary": "Origin",
+	}
+
+	# only required for preflight requests
+	if request.method == "OPTIONS":
+		cors_headers["Access-Control-Allow-Methods"] = request.headers.get(
+			"Access-Control-Request-Method"
+		)
+
+		if allowed_headers := request.headers.get("Access-Control-Request-Headers"):
+			cors_headers["Access-Control-Allow-Headers"] = allowed_headers
+
+		# allow browsers to cache preflight requests for upto a day
+		if not frappe.conf.developer_mode:
+			cors_headers["Access-Control-Max-Age"] = "86400"
+
+	response.headers.extend(cors_headers)
 
 
 def make_form_dict(request):
@@ -201,14 +231,9 @@ def make_form_dict(request):
 		args.update(request.form or {})
 
 	if not isinstance(args, dict):
-		frappe.throw("Invalid request arguments")
+		frappe.throw(_("Invalid request arguments"))
 
-	try:
-		frappe.local.form_dict = frappe._dict(
-			{k: v[0] if isinstance(v, (list, tuple)) else v for k, v in iteritems(args)}
-		)
-	except IndexError:
-		frappe.local.form_dict = frappe._dict(args)
+	frappe.local.form_dict = frappe._dict(args)
 
 	if "_" in frappe.local.form_dict:
 		# _ is passed by $.ajax so that the request is not cached by the browser. So, remove _ from form_dict
@@ -226,10 +251,19 @@ def handle_exception(e):
 		or (frappe.local.request.path.startswith("/api/") and not accept_header.startswith("text"))
 	)
 
+	if not frappe.session.user:
+		# If session creation fails then user won't be unset. This causes a lot of code that
+		# assumes presence of this to fail. Session creation fails => guest or expired login
+		# usually.
+		frappe.session.user = "Guest"
+
 	if respond_as_json:
 		# handle ajax responses first
 		# if the request is ajax, send back the trace or error message
 		response = frappe.utils.response.report_error(http_status_code)
+
+	elif isinstance(e, frappe.SessionStopped):
+		response = frappe.utils.response.handle_session_stopped()
 
 	elif (
 		http_status_code == 500
@@ -287,7 +321,7 @@ def handle_exception(e):
 		make_error_snapshot(e)
 
 	if return_as_message:
-		response = frappe.website.render.render("message", http_status_code=http_status_code)
+		response = get_response("message", http_status_code=http_status_code)
 
 	if frappe.conf.get("developer_mode") and not respond_as_json:
 		# don't fail silently for non-json response errors
@@ -297,7 +331,10 @@ def handle_exception(e):
 
 
 def after_request(rollback):
-	if (frappe.local.request.method in ("POST", "PUT") or frappe.local.flags.commit) and frappe.db:
+	# if HTTP method would change server state, commit if necessary
+	if frappe.db and (
+		frappe.local.flags.commit or frappe.local.request.method in UNSAFE_HTTP_METHODS
+	):
 		if frappe.db.transaction_writes:
 			frappe.db.commit()
 			rollback = False
@@ -314,9 +351,6 @@ def after_request(rollback):
 	return rollback
 
 
-application = local_manager.make_middleware(application)
-
-
 def serve(
 	port=8000, profile=False, no_reload=False, no_threading=False, site=None, sites_path="."
 ):
@@ -326,19 +360,15 @@ def serve(
 
 	from werkzeug.serving import run_simple
 
-	patch_werkzeug_reloader()
-
-	if profile:
+	if profile or os.environ.get("USE_PROFILER"):
 		application = ProfilerMiddleware(application, sort_by=("cumtime", "calls"))
 
 	if not os.environ.get("NO_STATICS"):
 		application = SharedDataMiddleware(
-			application, {str("/assets"): str(os.path.join(sites_path, "assets"))}
+			application, {"/assets": str(os.path.join(sites_path, "assets"))}
 		)
 
-		application = StaticDataMiddleware(
-			application, {str("/files"): str(os.path.abspath(sites_path))}
-		)
+		application = StaticDataMiddleware(application, {"/files": str(os.path.abspath(sites_path))})
 
 	application.debug = True
 	application.config = {"SERVER_NAME": "localhost:8000"}
@@ -359,24 +389,3 @@ def serve(
 		use_evalex=not in_test_env,
 		threaded=not no_threading,
 	)
-
-
-def patch_werkzeug_reloader():
-	"""
-	This function monkey patches Werkzeug reloader to ignore reloading files in
-	the __pycache__ directory.
-
-	To be deprecated when upgrading to Werkzeug 2.
-	"""
-
-	from werkzeug._reloader import WatchdogReloaderLoop
-
-	trigger_reload = WatchdogReloaderLoop.trigger_reload
-
-	def custom_trigger_reload(self, filename):
-		if os.path.basename(os.path.dirname(filename)) == "__pycache__":
-			return
-
-		return trigger_reload(self, filename)
-
-	WatchdogReloaderLoop.trigger_reload = custom_trigger_reload

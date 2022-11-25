@@ -5,7 +5,6 @@
 import frappe
 from frappe import _, scrub
 from frappe.utils import add_days, add_to_date, flt, getdate
-from six import iteritems
 
 from erpnext.accounts.utils import get_fiscal_year
 
@@ -259,7 +258,7 @@ class Analytics(object):
 		self.data = []
 		self.get_periodic_data()
 
-		for entity, period_data in iteritems(self.entity_periodic_data):
+		for entity, period_data in self.entity_periodic_data.items():
 			row = {
 				"entity": entity,
 				"entity_name": self.entity_names.get(entity) if hasattr(self, "entity_names") else None,
@@ -314,11 +313,13 @@ class Analytics(object):
 
 	def get_period(self, posting_date):
 		if self.filters.range == "Weekly":
-			period = "Week " + str(posting_date.isocalendar()[1]) + " " + str(posting_date.year)
+			period = _("Week {0} {1}").format(str(posting_date.isocalendar()[1]), str(posting_date.year))
 		elif self.filters.range == "Monthly":
-			period = str(self.months[posting_date.month - 1]) + " " + str(posting_date.year)
+			period = _(str(self.months[posting_date.month - 1])) + " " + str(posting_date.year)
 		elif self.filters.range == "Quarterly":
-			period = "Quarter " + str(((posting_date.month - 1) // 3) + 1) + " " + str(posting_date.year)
+			period = _("Quarter {0} {1}").format(
+				str(((posting_date.month - 1) // 3) + 1), str(posting_date.year)
+			)
 		else:
 			year = get_fiscal_year(posting_date, company=self.filters.company)
 			period = str(year[0])

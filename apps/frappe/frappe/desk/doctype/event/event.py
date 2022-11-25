@@ -1,15 +1,15 @@
 # Copyright (c) 2018, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
-from __future__ import unicode_literals
 
 import json
 
-from six import string_types
-from six.moves import range
-
 import frappe
 from frappe import _
+from frappe.contacts.doctype.contact.contact import get_default_contact
+from frappe.desk.doctype.notification_settings.notification_settings import (
+	is_email_notifications_enabled_for_type,
+)
 from frappe.desk.reportview import get_filters_cond
 from frappe.model.document import Document
 from frappe.utils import (
@@ -19,7 +19,6 @@ from frappe.utils import (
 	cstr,
 	date_diff,
 	format_datetime,
-	get_datetime,
 	get_datetime_str,
 	getdate,
 	now_datetime,
@@ -56,6 +55,12 @@ class Event(Document):
 
 		if self.sync_with_google_calendar and not self.google_calendar:
 			frappe.throw(_("Select Google Calendar to which event should be synced."))
+
+		if not self.sync_with_google_calendar:
+			self.add_video_conferencing = 0
+
+	def before_save(self):
+		self.set_participants_email()
 
 	def on_update(self):
 		self.sync_communication()
@@ -133,11 +138,27 @@ class Event(Document):
 		for participant in participants:
 			self.add_participant(participant["doctype"], participant["docname"])
 
+	def set_participants_email(self):
+		for participant in self.event_participants:
+			if participant.email:
+				continue
+
+			if participant.reference_doctype != "Contact":
+				participant_contact = get_default_contact(
+					participant.reference_doctype, participant.reference_docname
+				)
+			else:
+				participant_contact = participant.reference_docname
+
+			participant.email = (
+				frappe.get_value("Contact", participant_contact, "email_id") if participant_contact else None
+			)
+
 
 @frappe.whitelist()
 def delete_communication(event, reference_doctype, reference_docname):
 	deleted_participant = frappe.get_doc(reference_doctype, reference_docname)
-	if isinstance(event, string_types):
+	if isinstance(event, str):
 		event = json.loads(event)
 
 	filters = [
@@ -163,9 +184,9 @@ def delete_communication(event, reference_doctype, reference_docname):
 def get_permission_query_conditions(user):
 	if not user:
 		user = frappe.session.user
-	return """(`tabEvent`.`event_type`='Public' or `tabEvent`.`owner`=%(user)s)""" % {
-		"user": frappe.db.escape(user),
-	}
+	return """(`tabEvent`.`event_type`='Public' or `tabEvent`.`owner`={user})""".format(
+		user=frappe.db.escape(user),
+	)
 
 
 def has_permission(doc, user):
@@ -177,7 +198,15 @@ def has_permission(doc, user):
 
 def send_event_digest():
 	today = nowdate()
-	for user in get_enabled_system_users():
+
+	# select only those users that have event reminder email notifications enabled
+	users = [
+		user
+		for user in get_enabled_system_users()
+		if is_email_notifications_enabled_for_type(user.name, "Event Reminders")
+	]
+
+	for user in users:
 		events = get_events(today, today, user.name, for_reminder=True)
 		if events:
 			frappe.set_user_lang(user.name, user.language)
@@ -203,7 +232,7 @@ def get_events(start, end, user=None, for_reminder=False, filters=None):
 	if not user:
 		user = frappe.session.user
 
-	if isinstance(filters, string_types):
+	if isinstance(filters, str):
 		filters = json.loads(filters)
 
 	filter_condition = get_filters_cond("Event", filters, [])
@@ -406,13 +435,8 @@ def delete_events(ref_type, ref_name, delete_event=False):
 				)
 
 				if len(total_participants) <= 1:
-					frappe.db.sql(
-						"DELETE FROM `tabEvent` WHERE `name` = %(name)s", {"name": participation.parent}
-					)
-
-				frappe.db.sql(
-					"DELETE FROM `tabEvent Participants ` WHERE `name` = %(name)s", {"name": participation.name}
-				)
+					frappe.db.delete("Event", {"name": participation.parent})
+					frappe.db.delete("Event Participants", {"name": participation.name})
 
 
 # Close events if ends_on or repeat_till is less than now_datetime

@@ -1,7 +1,5 @@
 # Copyright (c) 2013, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 from datetime import datetime
 
@@ -15,7 +13,7 @@ def execute(filters=None):
 	return WebsiteAnalytics(filters).run()
 
 
-class WebsiteAnalytics(object):
+class WebsiteAnalytics:
 	def __init__(self, filters=None):
 		self.filters = frappe._dict(filters or {})
 

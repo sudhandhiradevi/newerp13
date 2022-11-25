@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 """docfield utililtes"""
 
@@ -47,7 +45,7 @@ def update_parent_field(f, new):
 	if f["fieldtype"] in frappe.model.table_fields:
 		frappe.db.begin()
 		frappe.db.sql(
-			"""update `tab%s` set parentfield=%s where parentfield=%s""" % (f["options"], "%s", "%s"),
+			"""update `tab{}` set parentfield={} where parentfield={}""".format(f["options"], "%s", "%s"),
 			(new, f["fieldname"]),
 		)
 		frappe.db.commit()
@@ -58,7 +56,7 @@ def get_change_column_query(f, new):
 	desc = frappe.db.sql("desc `tab%s`" % f["parent"])
 	for d in desc:
 		if d[0] == f["fieldname"]:
-			return "alter table `tab%s` change `%s` `%s` %s" % (f["parent"], f["fieldname"], new, d[1])
+			return "alter table `tab{}` change `{}` `{}` {}".format(f["parent"], f["fieldname"], new, d[1])
 
 
 def supports_translation(fieldtype):

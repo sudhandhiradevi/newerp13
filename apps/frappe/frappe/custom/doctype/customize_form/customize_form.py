@@ -1,7 +1,5 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
+# MIT License. See LICENSE
 
 """
 	Customize Form is a Single DocType used to mask the Property Setter
@@ -14,6 +12,7 @@ import frappe.translate
 from frappe import _
 from frappe.core.doctype.doctype.doctype import (
 	check_email_append_to,
+	validate_autoincrement_autoname,
 	validate_fields_for_doctype,
 	validate_series,
 )
@@ -27,8 +26,8 @@ from frappe.utils import cint
 
 class CustomizeForm(Document):
 	def on_update(self):
-		frappe.db.sql("delete from tabSingles where doctype='Customize Form'")
-		frappe.db.sql("delete from `tabCustomize Form Field`")
+		frappe.db.delete("Singles", {"doctype": "Customize Form"})
+		frappe.db.delete("Customize Form Field")
 
 	@frappe.whitelist()
 	def fetch_to_customize(self):
@@ -73,12 +72,17 @@ class CustomizeForm(Document):
 			self.set(prop, meta.get(prop))
 
 		for d in meta.get("fields"):
-			new_d = {"fieldname": d.fieldname, "is_custom_field": d.get("is_custom_field"), "name": d.name}
+			new_d = {
+				"fieldname": d.fieldname,
+				"is_custom_field": d.get("is_custom_field"),
+				"is_system_generated": d.get("is_system_generated"),
+				"name": d.name,
+			}
 			for prop in docfield_properties:
 				new_d[prop] = d.get(prop)
 			self.append("fields", new_d)
 
-		for fieldname in ("links", "actions"):
+		for fieldname in ("links", "actions", "states"):
 			for d in meta.get(fieldname):
 				self.append(fieldname, d)
 
@@ -156,7 +160,9 @@ class CustomizeForm(Document):
 	def save_customization(self):
 		if not self.doc_type:
 			return
+
 		validate_series(self, self.autoname, self.doc_type)
+		validate_autoincrement_autoname(self)
 		self.flags.update_db = False
 		self.flags.rebuild_doctype_for_global_search = False
 		self.set_property_setters()
@@ -295,6 +301,7 @@ class CustomizeForm(Document):
 		for doctype, fieldname, field_map in (
 			("DocType Link", "links", doctype_link_properties),
 			("DocType Action", "actions", doctype_action_properties),
+			("DocType State", "states", doctype_state_properties),
 		):
 			has_custom = False
 			items = []
@@ -323,7 +330,7 @@ class CustomizeForm(Document):
 		We need to maintain the order of the link/actions if the user has shuffled them.
 		So we create a new property (ex `links_order`) to keep a list of items.
 		"""
-		property_name = "{}_order".format(fieldname)
+		property_name = f"{fieldname}_order"
 		if has_custom:
 			# save the order of the actions and links
 			self.make_property_setter(
@@ -404,10 +411,9 @@ class CustomizeForm(Document):
 
 	def delete_custom_fields(self):
 		meta = frappe.get_meta(self.doc_type)
-		fields_to_remove = set([df.fieldname for df in meta.get("fields")]) - set(
+		fields_to_remove = {df.fieldname for df in meta.get("fields")} - {
 			df.fieldname for df in self.get("fields")
-		)
-
+		}
 		for fieldname in fields_to_remove:
 			df = meta.get("fields", {"fieldname": fieldname})[0]
 			if df.get("is_custom_field"):
@@ -436,7 +442,8 @@ class CustomizeForm(Document):
 				"property": prop,
 				"value": value,
 				"property_type": property_type,
-			}
+			},
+			is_system_generated=False,
 		)
 
 	def get_existing_property_value(self, property_name, fieldname=None):
@@ -454,6 +461,9 @@ class CustomizeForm(Document):
 		return property_value
 
 	def validate_fieldtype_change(self, df, old_value, new_value):
+		if df.is_virtual:
+			return
+
 		allowed = self.allow_fieldtype_change(old_value, new_value)
 		if allowed:
 			old_value_length = cint(frappe.db.type_map.get(old_value)[1])
@@ -466,7 +476,8 @@ class CustomizeForm(Document):
 				self.validate_fieldtype_length()
 			else:
 				self.flags.update_db = True
-		if not allowed:
+
+		else:
 			frappe.throw(
 				_("Fieldtype cannot be changed from {0} to {1} in row {2}").format(
 					old_value, new_value, df.idx
@@ -518,7 +529,10 @@ class CustomizeForm(Document):
 		"""allow type change, if both old_type and new_type are in same field group.
 		field groups are defined in ALLOWED_FIELDTYPE_CHANGE variables.
 		"""
-		in_field_group = lambda group: (old_type in group) and (new_type in group)
+
+		def in_field_group(group):
+			return (old_type in group) and (new_type in group)
+
 		return any(map(in_field_group, ALLOWED_FIELDTYPE_CHANGE))
 
 
@@ -529,12 +543,20 @@ def reset_customization(doctype):
 			"doc_type": doctype,
 			"field_name": ["!=", "naming_series"],
 			"property": ["!=", "options"],
+			"is_system_generated": False,
 		},
 		pluck="name",
 	)
 
 	for setter in setters:
 		frappe.delete_doc("Property Setter", setter)
+
+	custom_fields = frappe.get_all(
+		"Custom Field", filters={"dt": doctype, "is_system_generated": False}, pluck="name"
+	)
+
+	for field in custom_fields:
+		frappe.delete_doc("Custom Field", field)
 
 	frappe.clear_cache(doctype=doctype)
 
@@ -561,7 +583,13 @@ doctype_properties = {
 	"email_append_to": "Check",
 	"subject_field": "Data",
 	"sender_field": "Data",
+	"naming_rule": "Data",
 	"autoname": "Data",
+	"show_title_field_in_link": "Check",
+	"translate_link_fields": "Check",
+	"is_calendar_and_gantt": "Check",
+	"default_view": "Select",
+	"force_re_route_to_default_view": "Check",
 	"translated_doctype": "Check",
 }
 
@@ -572,6 +600,7 @@ docfield_properties = {
 	"options": "Text",
 	"fetch_from": "Small Text",
 	"fetch_if_empty": "Check",
+	"show_dashboard": "Check",
 	"permlevel": "Int",
 	"width": "Data",
 	"print_width": "Data",
@@ -610,6 +639,7 @@ docfield_properties = {
 	"hide_border": "Check",
 	"hide_days": "Check",
 	"hide_seconds": "Check",
+	"is_virtual": "Check",
 }
 
 doctype_link_properties = {
@@ -626,6 +656,8 @@ doctype_action_properties = {
 	"group": "Data",
 	"hidden": "Check",
 }
+
+doctype_state_properties = {"title": "Data", "color": "Select"}
 
 
 ALLOWED_FIELDTYPE_CHANGE = (

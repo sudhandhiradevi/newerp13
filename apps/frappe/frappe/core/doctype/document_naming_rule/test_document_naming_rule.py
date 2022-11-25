@@ -1,14 +1,10 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestDocumentNamingRule(unittest.TestCase):
+class TestDocumentNamingRule(FrappeTestCase):
 	def test_naming_rule_by_series(self):
 		naming_rule = frappe.get_doc(
 			dict(doctype="Document Naming Rule", document_type="ToDo", prefix="test-todo-", prefix_digits=5)

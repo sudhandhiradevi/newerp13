@@ -1,68 +1,86 @@
 # Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import print_function, unicode_literals
+# License: MIT. See LICENSE
 
 import os
+import pathlib
 import re
 
+import click
 import git
-from six.moves import input
 
 import frappe
-from frappe.utils import cstr, touch_file
+from frappe.utils import touch_file
+
+APP_TITLE_PATTERN = re.compile(r"^(?![\W])[^\d_\s][\w -]+$", flags=re.UNICODE)
 
 
-def make_boilerplate(dest, app_name):
+def make_boilerplate(dest, app_name, no_git=False):
 	if not os.path.exists(dest):
 		print("Destination directory does not exist")
 		return
 
 	# app_name should be in snake_case
 	app_name = frappe.scrub(app_name)
+	hooks = _get_user_inputs(app_name)
+	_create_app_boilerplate(dest, hooks, no_git=no_git)
+
+
+def _get_user_inputs(app_name):
+	"""Prompt user for various inputs related to new app and return config."""
+	app_name = frappe.scrub(app_name)
 
 	hooks = frappe._dict()
 	hooks.app_name = app_name
 	app_title = hooks.app_name.replace("_", " ").title()
-	for key in (
-		"App Title (default: {0})".format(app_title),
-		"App Description",
-		"App Publisher",
-		"App Email",
-		"App Icon (default 'octicon octicon-file-directory')",
-		"App Color (default 'grey')",
-		"App License (default 'MIT')",
-	):
-		hook_key = key.split(" (")[0].lower().replace(" ", "_")
-		hook_val = None
-		while not hook_val:
-			hook_val = cstr(input(key + ": "))
 
-			if not hook_val:
-				defaults = {
-					"app_title": app_title,
-					"app_icon": "octicon octicon-file-directory",
-					"app_color": "grey",
-					"app_license": "MIT",
-				}
-				if hook_key in defaults:
-					hook_val = defaults[hook_key]
+	new_app_config = {
+		"app_title": {
+			"prompt": "App Title",
+			"default": app_title,
+			"validator": is_valid_title,
+		},
+		"app_description": {"prompt": "App Description"},
+		"app_publisher": {"prompt": "App Publisher"},
+		"app_email": {"prompt": "App Email"},
+		"app_license": {"prompt": "App License", "default": "MIT"},
+		"create_github_workflow": {
+			"prompt": "Create GitHub Workflow action for unittests",
+			"default": False,
+			"type": bool,
+		},
+	}
 
-			if hook_key == "app_name" and hook_val.lower().replace(" ", "_") != hook_val:
-				print("App Name must be all lowercase and without spaces")
-				hook_val = ""
-			elif hook_key == "app_title" and not re.match(
-				r"^(?![\W])[^\d_\s][\w -]+$", hook_val, re.UNICODE
-			):
-				print(
-					"App Title should start with a letter and it can only consist of letters, numbers, spaces and underscores"
-				)
-				hook_val = ""
+	for property, config in new_app_config.items():
+		value = None
+		input_type = config.get("type", str)
 
-		hooks[hook_key] = hook_val
+		while value is None:
+			if input_type == bool:
+				value = click.confirm(config["prompt"], default=config.get("default"))
+			else:
+				value = click.prompt(config["prompt"], default=config.get("default"), type=input_type)
 
+			if validator_function := config.get("validator"):
+				if not validator_function(value):
+					value = None
+		hooks[property] = value
+
+	return hooks
+
+
+def is_valid_title(title) -> bool:
+	if not APP_TITLE_PATTERN.match(title):
+		print(
+			"App Title should start with a letter and it can only consist of letters, numbers, spaces and underscores"
+		)
+		return False
+	return True
+
+
+def _create_app_boilerplate(dest, hooks, no_git=False):
 	frappe.create_folder(
-		os.path.join(dest, hooks.app_name, hooks.app_name, frappe.scrub(hooks.app_title)), with_init=True
+		os.path.join(dest, hooks.app_name, hooks.app_name, frappe.scrub(hooks.app_title)),
+		with_init=True,
 	)
 	frappe.create_folder(
 		os.path.join(dest, hooks.app_name, hooks.app_name, "templates"), with_init=True
@@ -76,14 +94,16 @@ def make_boilerplate(dest, app_name):
 	frappe.create_folder(os.path.join(dest, hooks.app_name, hooks.app_name, "public", "css"))
 	frappe.create_folder(os.path.join(dest, hooks.app_name, hooks.app_name, "public", "js"))
 
+	# add .gitkeep file so that public folder is committed to git
+	# this is needed because if public doesn't exist, bench build doesn't symlink the apps assets
+	with open(os.path.join(dest, hooks.app_name, hooks.app_name, "public", ".gitkeep"), "w") as f:
+		f.write("")
+
 	with open(os.path.join(dest, hooks.app_name, hooks.app_name, "__init__.py"), "w") as f:
 		f.write(frappe.as_unicode(init_template))
 
 	with open(os.path.join(dest, hooks.app_name, "MANIFEST.in"), "w") as f:
 		f.write(frappe.as_unicode(manifest_template.format(**hooks)))
-
-	with open(os.path.join(dest, hooks.app_name, ".gitignore"), "w") as f:
-		f.write(frappe.as_unicode(gitignore_template.format(app_name=hooks.app_name)))
 
 	with open(os.path.join(dest, hooks.app_name, "requirements.txt"), "w") as f:
 		f.write("# frappe -- https://github.com/frappe/frappe is installed via 'bench init'")
@@ -91,7 +111,7 @@ def make_boilerplate(dest, app_name):
 	with open(os.path.join(dest, hooks.app_name, "README.md"), "w") as f:
 		f.write(
 			frappe.as_unicode(
-				"## {0}\n\n{1}\n\n#### License\n\n{2}".format(
+				"## {}\n\n{}\n\n#### License\n\n{}".format(
 					hooks.app_title, hooks.app_description, hooks.app_license
 				)
 			)
@@ -122,13 +142,30 @@ def make_boilerplate(dest, app_name):
 	with open(os.path.join(dest, hooks.app_name, hooks.app_name, "config", "docs.py"), "w") as f:
 		f.write(frappe.as_unicode(docs_template.format(**hooks)))
 
-	# initialize git repository
 	app_directory = os.path.join(dest, hooks.app_name)
-	app_repo = git.Repo.init(app_directory)
-	app_repo.git.add(A=True)
-	app_repo.index.commit("feat: Initialize App")
 
-	print("'{app}' created at {path}".format(app=app_name, path=app_directory))
+	if hooks.create_github_workflow:
+		_create_github_workflow_files(dest, hooks)
+
+	if not no_git:
+		with open(os.path.join(dest, hooks.app_name, ".gitignore"), "w") as f:
+			f.write(frappe.as_unicode(gitignore_template.format(app_name=hooks.app_name)))
+
+		# initialize git repository
+		app_repo = git.Repo.init(app_directory)
+		app_repo.git.add(A=True)
+		app_repo.index.commit("feat: Initialize App")
+
+	print(f"'{hooks.app_name}' created at {app_directory}")
+
+
+def _create_github_workflow_files(dest, hooks):
+	workflows_path = pathlib.Path(dest) / hooks.app_name / ".github" / "workflows"
+	workflows_path.mkdir(parents=True, exist_ok=True)
+
+	ci_workflow = workflows_path / "ci.yml"
+	with open(ci_workflow, "w") as f:
+		f.write(github_workflow_template.format(**hooks))
 
 
 manifest_template = """include MANIFEST.in
@@ -161,8 +198,6 @@ app_name = "{app_name}"
 app_title = "{app_title}"
 app_publisher = "{app_publisher}"
 app_description = "{app_description}"
-app_icon = "{app_icon}"
-app_color = "{app_color}"
 app_email = "{app_email}"
 app_license = "{app_license}"
 
@@ -209,6 +244,15 @@ app_license = "{app_license}"
 
 # automatically create page for each record of this doctype
 # website_generators = ["Web Page"]
+
+# Jinja
+# ----------
+
+# add methods and filters to jinja environment
+# jinja = {{
+#	"methods": "{app_name}.utils.jinja_methods",
+#	"filters": "{app_name}.utils.jinja_filters"
+# }}
 
 # Installation
 # ------------
@@ -275,10 +319,10 @@ app_license = "{app_license}"
 #	],
 #	"weekly": [
 #		"{app_name}.tasks.weekly"
-#	]
+#	],
 #	"monthly": [
 #		"{app_name}.tasks.monthly"
-#	]
+#	],
 # }}
 
 # Testing
@@ -308,26 +352,26 @@ app_license = "{app_license}"
 # User Data Protection
 # --------------------
 
-user_data_fields = [
-	{{
-		"doctype": "{{doctype_1}}",
-		"filter_by": "{{filter_by}}",
-		"redact_fields": ["{{field_1}}", "{{field_2}}"],
-		"partial": 1,
-	}},
-	{{
-		"doctype": "{{doctype_2}}",
-		"filter_by": "{{filter_by}}",
-		"partial": 1,
-	}},
-	{{
-		"doctype": "{{doctype_3}}",
-		"strict": False,
-	}},
-	{{
-		"doctype": "{{doctype_4}}"
-	}}
-]
+# user_data_fields = [
+#	{{
+#		"doctype": "{{doctype_1}}",
+#		"filter_by": "{{filter_by}}",
+#		"redact_fields": ["{{field_1}}", "{{field_2}}"],
+#		"partial": 1,
+#	}},
+#	{{
+#		"doctype": "{{doctype_2}}",
+#		"filter_by": "{{filter_by}}",
+#		"partial": 1,
+#	}},
+#	{{
+#		"doctype": "{{doctype_3}}",
+#		"strict": False,
+#	}},
+#	{{
+#		"doctype": "{{doctype_4}}"
+#	}}
+# ]
 
 # Authentication and authorization
 # --------------------------------
@@ -335,7 +379,6 @@ user_data_fields = [
 # auth_hooks = [
 #	"{app_name}.auth.validate"
 # ]
-
 """
 
 desktop_template = """from frappe import _
@@ -344,8 +387,6 @@ def get_data():
 	return [
 		{{
 			"module_name": "{app_title}",
-			"color": "{app_color}",
-			"icon": "{app_icon}",
 			"type": "module",
 			"label": _("{app_title}")
 		}}
@@ -378,17 +419,110 @@ gitignore_template = """.DS_Store
 *.egg-info
 *.swp
 tags
-{app_name}/docs/current"""
+{app_name}/docs/current
+node_modules/"""
 
 docs_template = '''"""
 Configuration for docs
 """
 
 # source_link = "https://github.com/[org_name]/{app_name}"
-# docs_base_url = "https://[org_name].github.io/{app_name}"
 # headline = "App that does everything"
 # sub_heading = "Yes, you got that right the first time, everything"
 
 def get_context(context):
 	context.brand_html = "{app_title}"
 '''
+
+
+github_workflow_template = """
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+
+concurrency:
+  group: develop-{app_name}-${{{{ github.event.number }}}}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    name: Server
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+          check-latest: true
+
+      - name: Cache pip
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{{{ runner.os }}}}-pip-${{{{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py', '**/setup.cfg') }}}}
+          restore-keys: |
+            ${{{{ runner.os }}}}-pip-
+            ${{{{ runner.os }}}}-
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: 'echo "::set-output name=dir::$(yarn cache dir)"'
+
+      - uses: actions/cache@v2
+        id: yarn-cache
+        with:
+          path: ${{{{ steps.yarn-cache-dir-path.outputs.dir }}}}
+          key: ${{{{ runner.os }}}}-yarn-${{{{ hashFiles('**/yarn.lock') }}}}
+          restore-keys: |
+            ${{{{ runner.os }}}}-yarn-
+
+      - name: Setup
+        run: |
+          pip install frappe-bench
+          bench init --skip-redis-config-generation --skip-assets --python "$(which python)" ~/frappe-bench
+          mysql --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
+          mysql --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
+
+      - name: Install
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench get-app {app_name} $GITHUB_WORKSPACE
+          bench setup requirements --dev
+          bench new-site --db-root-password root --admin-password admin test_site
+          bench --site test_site install-app {app_name}
+          bench build
+        env:
+          CI: 'Yes'
+
+      - name: Run Tests
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench --site test_site set-config allow_tests true
+          bench --site test_site run-tests --app {app_name}
+        env:
+          TYPE: server
+"""

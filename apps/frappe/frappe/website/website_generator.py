@@ -1,14 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe.model.document import Document
 from frappe.modules import get_module_name
 from frappe.search.website_search import remove_document_from_index, update_index_for_path
-from frappe.website.render import clear_cache
-from frappe.website.utils import cleanup_page_name
+from frappe.website.utils import cleanup_page_name, clear_cache
 
 
 class WebsiteGenerator(Document):
@@ -16,7 +13,7 @@ class WebsiteGenerator(Document):
 
 	def __init__(self, *args, **kwargs):
 		self.route = None
-		super(WebsiteGenerator, self).__init__(*args, **kwargs)
+		super().__init__(*args, **kwargs)
 
 	def get_website_properties(self, key=None, default=None):
 		out = getattr(self, "_website", None) or getattr(self, "website", None) or {}
@@ -73,7 +70,7 @@ class WebsiteGenerator(Document):
 		return title_field
 
 	def clear_cache(self):
-		super(WebsiteGenerator, self).clear_cache()
+		super().clear_cache()
 		clear_cache(self.route)
 
 	def scrub(self, text):
@@ -131,6 +128,8 @@ class WebsiteGenerator(Document):
 
 		if not route.page_title:
 			route.page_title = self.get(self.get_title_field())
+
+		route.title = route.page_title
 
 		return route
 

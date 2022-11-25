@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
+# License: MIT. See LICENSE
 
 import os
 
@@ -27,6 +26,7 @@ class DataImport(Document):
 
 		self.validate_import_file()
 		self.validate_google_sheets_url()
+		self.set_payload_count()
 
 	def validate_import_file(self):
 		if self.import_file:
@@ -37,6 +37,12 @@ class DataImport(Document):
 		if not self.google_sheets_url:
 			return
 		validate_google_sheets_url(self.google_sheets_url)
+
+	def set_payload_count(self):
+		if self.import_file:
+			i = self.get_importer()
+			payloads = i.import_file.get_payloads_for_import()
+			self.payload_count = len(payloads)
 
 	@frappe.whitelist()
 	def get_preview_from_template(self, import_file=None, google_sheets_url=None):
@@ -65,7 +71,7 @@ class DataImport(Document):
 			enqueue(
 				start_import,
 				queue="default",
-				timeout=6000,
+				timeout=10000,
 				event="data_import",
 				job_name=self.name,
 				data_import=self.name,
@@ -77,6 +83,9 @@ class DataImport(Document):
 
 	def export_errored_rows(self):
 		return self.get_importer().export_errored_rows()
+
+	def download_import_log(self):
+		return self.get_importer().export_import_log()
 
 	def get_importer(self):
 		return Importer(self.reference_doctype, data_import=self)
@@ -103,7 +112,7 @@ def start_import(data_import):
 	except Exception:
 		frappe.db.rollback()
 		data_import.db_set("status", "Error")
-		frappe.log_error(title=data_import.name)
+		data_import.log_error("Data import failed")
 	finally:
 		frappe.flags.in_import = False
 
@@ -144,6 +153,36 @@ def download_errored_template(data_import_name):
 	data_import.export_errored_rows()
 
 
+@frappe.whitelist()
+def download_import_log(data_import_name):
+	data_import = frappe.get_doc("Data Import", data_import_name)
+	data_import.download_import_log()
+
+
+@frappe.whitelist()
+def get_import_status(data_import_name):
+	import_status = {}
+
+	logs = frappe.get_all(
+		"Data Import Log",
+		fields=["count(*) as count", "success"],
+		filters={"data_import": data_import_name},
+		group_by="success",
+	)
+
+	total_payload_count = frappe.db.get_value("Data Import", data_import_name, "payload_count")
+
+	for log in logs:
+		if log.get("success"):
+			import_status["success"] = log.get("count")
+		else:
+			import_status["failed"] = log.get("count")
+
+	import_status["total_records"] = total_payload_count
+
+	return import_status
+
+
 def import_file(doctype, file_path, import_type, submit_after_import=False, console=False):
 	"""
 	Import documents in from CSV or XLSX using data import.
@@ -165,9 +204,6 @@ def import_file(doctype, file_path, import_type, submit_after_import=False, cons
 	i.import_data()
 
 
-##############
-
-
 def import_doc(path, pre_process=None):
 	if os.path.isdir(path):
 		files = [os.path.join(path, f) for f in os.listdir(path)]
@@ -182,19 +218,8 @@ def import_doc(path, pre_process=None):
 			)
 			frappe.flags.mute_emails = False
 			frappe.db.commit()
-		elif f.endswith(".csv"):
-			validate_csv_import_file(f)
-			frappe.db.commit()
-
-
-def validate_csv_import_file(path):
-	if path.endswith(".csv"):
-		print()
-		print("This method is deprecated.")
-		print('Import CSV files using the command "bench --site sitename data-import"')
-		print("Or use the method frappe.core.doctype.data_import.data_import.import_file")
-		print()
-		raise Exception("Method deprecated")
+		else:
+			raise NotImplementedError("Only .json files can be imported")
 
 
 def export_json(doctype, path, filters=None, or_filters=None, name=None, order_by="creation asc"):

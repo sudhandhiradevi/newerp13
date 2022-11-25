@@ -148,10 +148,11 @@
  "idx": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2022-08-06 12:13:36.341826",
+ "modified": "2022-08-05 18:33:27.694065",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "Role",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
@@ -169,6 +170,7 @@
  "quick_entry": 1,
  "sort_field": "modified",
  "sort_order": "ASC",
+ "states": [],
  "track_changes": 1,
  "translated_doctype": 1
 }

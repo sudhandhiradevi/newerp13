@@ -246,7 +246,6 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 
 	def test_stock_reco_for_batch_item(self):
 		to_delete_records = []
-		to_delete_serial_nos = []
 
 		# Add new serial nos
 		item_code = "Stock-Reco-batch-Item-1"
@@ -255,14 +254,15 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		sr = create_stock_reconciliation(
 			item_code=item_code, warehouse=warehouse, qty=5, rate=200, do_not_save=1
 		)
-		sr.save(ignore_permissions=True)
+		sr.save()
 		sr.submit()
 
-		self.assertTrue(sr.items[0].batch_no)
+		batch_no = sr.items[0].batch_no
+		self.assertTrue(batch_no)
 		to_delete_records.append(sr.name)
 
 		sr1 = create_stock_reconciliation(
-			item_code=item_code, warehouse=warehouse, qty=6, rate=300, batch_no=sr.items[0].batch_no
+			item_code=item_code, warehouse=warehouse, qty=6, rate=300, batch_no=batch_no
 		)
 
 		args = {
@@ -270,6 +270,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 			"warehouse": warehouse,
 			"posting_date": nowdate(),
 			"posting_time": nowtime(),
+			"batch_no": batch_no,
 		}
 
 		valuation_rate = get_incoming_rate(args)
@@ -277,7 +278,7 @@ class TestStockReconciliation(FrappeTestCase, StockTestMixin):
 		to_delete_records.append(sr1.name)
 
 		sr2 = create_stock_reconciliation(
-			item_code=item_code, warehouse=warehouse, qty=0, rate=0, batch_no=sr.items[0].batch_no
+			item_code=item_code, warehouse=warehouse, qty=0, rate=0, batch_no=batch_no
 		)
 
 		stock_value = get_stock_value_on(warehouse, nowdate(), item_code)
@@ -726,12 +727,21 @@ def create_stock_reconciliation(**args):
 	sr.set_posting_time = 1
 	sr.company = args.company or "_Test Company"
 	sr.expense_account = args.expense_account or (
-		"Stock Adjustment - _TC" if frappe.get_all("Stock Ledger Entry") else "Temporary Opening - _TC"
+		(
+			frappe.get_cached_value("Company", sr.company, "stock_adjustment_account")
+			or frappe.get_cached_value(
+				"Account", {"account_type": "Stock Adjustment", "company": sr.company}, "name"
+			)
+		)
+		if frappe.get_all("Stock Ledger Entry", {"company": sr.company})
+		else frappe.get_cached_value(
+			"Account", {"account_type": "Temporary", "company": sr.company}, "name"
+		)
 	)
 	sr.cost_center = (
 		args.cost_center
 		or frappe.get_cached_value("Company", sr.company, "cost_center")
-		or "_Test Cost Center - _TC"
+		or frappe.get_cached_value("Cost Center", filters={"is_group": 0, "company": sr.company})
 	)
 
 	sr.append(

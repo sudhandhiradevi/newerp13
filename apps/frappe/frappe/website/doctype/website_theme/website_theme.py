@@ -1,12 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 from os.path import abspath
 from os.path import exists as path_exists
 from os.path import join as join_path
 from os.path import splitext
+from typing import Optional
 
 import frappe
 from frappe import _
@@ -76,7 +75,7 @@ class WebsiteTheme(Document):
 			self.delete_old_theme_files(folder_path)
 
 		# add a random suffix
-		suffix = frappe.generate_hash("Website Theme", 8) if self.custom else "style"
+		suffix = frappe.generate_hash(length=8) if self.custom else "style"
 		file_name = frappe.scrub(self.name) + "_" + suffix + ".css"
 		output_path = join_path(folder_path, file_name)
 
@@ -91,7 +90,7 @@ class WebsiteTheme(Document):
 		if stderr:
 			stderr = frappe.safe_decode(stderr)
 			stderr = stderr.replace("\n", "<br>")
-			frappe.throw('<div style="font-family: monospace;">{stderr}</div>'.format(stderr=stderr))
+			frappe.throw(f'<div style="font-family: monospace;">{stderr}</div>')
 		else:
 			self.theme_url = "/files/website_theme/" + file_name
 
@@ -133,19 +132,10 @@ class WebsiteTheme(Document):
 		return out
 
 
-def add_website_theme(context):
-	context.theme = frappe._dict()
-
-	if not context.disable_website_theme:
-		website_theme = get_active_theme()
-		context.theme = website_theme or frappe._dict()
-
-
-def get_active_theme():
-	website_theme = frappe.db.get_single_value("Website Settings", "website_theme")
-	if website_theme:
+def get_active_theme() -> Optional["WebsiteTheme"]:
+	if website_theme := frappe.get_website_settings("website_theme"):
 		try:
-			return frappe.get_doc("Website Theme", website_theme)
+			return frappe.get_cached_doc("Website Theme", website_theme)
 		except frappe.DoesNotExistError:
 			pass
 
@@ -171,18 +161,20 @@ def get_scss_paths():
 	"""
 	Return a set of SCSS import paths from all apps that provide `website.scss`.
 
-	If `$BENCH_PATH/apps/frappe/frappe/public/scss/website.scss` exists, the
-	returned set will contain 'frappe/public/scss/website'.
+	If `$BENCH_PATH/apps/frappe/frappe/public/scss/website[.bundle].scss` exists, the
+	returned set will contain 'frappe/public/scss/website[.bundle]'.
 	"""
 	import_path_list = []
 	bench_path = frappe.utils.get_bench_path()
 
+	scss_files = ["public/scss/website.scss", "public/scss/website.bundle.scss"]
 	for app in frappe.get_installed_apps():
-		relative_path = join_path(app, "public/scss/website.scss")
-		full_path = get_path("apps", app, relative_path, base=bench_path)
-		if path_exists(full_path):
-			import_path = splitext(relative_path)[0]
-			import_path_list.append(import_path)
+		for scss_file in scss_files:
+			relative_path = join_path(app, scss_file)
+			full_path = get_path("apps", app, relative_path, base=bench_path)
+			if path_exists(full_path):
+				import_path = splitext(relative_path)[0]
+				import_path_list.append(import_path)
 
 	return import_path_list
 

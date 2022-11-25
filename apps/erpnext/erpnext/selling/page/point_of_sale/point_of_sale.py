@@ -3,6 +3,7 @@
 
 
 import json
+from typing import Dict, Optional
 
 import frappe
 from frappe.utils import cint
@@ -10,6 +11,7 @@ from frappe.utils.nestedset import get_root_of
 
 from erpnext.accounts.doctype.pos_invoice.pos_invoice import get_stock_availability
 from erpnext.accounts.doctype.pos_profile.pos_profile import get_child_nodes, get_item_groups
+from erpnext.stock.utils import scan_barcode
 
 
 def search_by_term(search_term, warehouse, price_list):
@@ -151,29 +153,8 @@ def get_items(start, page_length, price_list, item_group, pos_profile, search_te
 
 
 @frappe.whitelist()
-def search_for_serial_or_batch_or_barcode_number(search_value):
-	# search barcode no
-	barcode_data = frappe.db.get_value(
-		"Item Barcode", {"barcode": search_value}, ["barcode", "parent as item_code"], as_dict=True
-	)
-	if barcode_data:
-		return barcode_data
-
-	# search serial no
-	serial_no_data = frappe.db.get_value(
-		"Serial No", search_value, ["name as serial_no", "item_code"], as_dict=True
-	)
-	if serial_no_data:
-		return serial_no_data
-
-	# search batch no
-	batch_no_data = frappe.db.get_value(
-		"Batch", search_value, ["name as batch_no", "item as item_code"], as_dict=True
-	)
-	if batch_no_data:
-		return batch_no_data
-
-	return {}
+def search_for_serial_or_batch_or_barcode_number(search_value: str) -> Dict[str, Optional[str]]:
+	return scan_barcode(search_value)
 
 
 def get_conditions(search_term):
@@ -224,7 +205,7 @@ def item_group_query(doctype, txt, searchfield, start, page_len, filters):
 
 	return frappe.db.sql(
 		""" select distinct name from `tabItem Group`
-			where {condition} and (name like %(txt)s) limit {start}, {page_len}""".format(
+			where {condition} and (name like %(txt)s) limit {page_len} offset {start}""".format(
 			condition=cond, start=start, page_len=page_len
 		),
 		{"txt": "%%%s%%" % txt},
@@ -273,20 +254,16 @@ def get_past_order_list(search_term, status, limit=20):
 			"POS Invoice",
 			filters={"customer": ["like", "%{}%".format(search_term)], "status": status},
 			fields=fields,
-			page_length=limit,
 		)
 		invoices_by_name = frappe.db.get_all(
 			"POS Invoice",
 			filters={"name": ["like", "%{}%".format(search_term)], "status": status},
 			fields=fields,
-			page_length=limit,
 		)
 
 		invoice_list = invoices_by_customer + invoices_by_name
 	elif status:
-		invoice_list = frappe.db.get_all(
-			"POS Invoice", filters={"status": status}, fields=fields, page_length=limit
-		)
+		invoice_list = frappe.db.get_all("POS Invoice", filters={"status": status}, fields=fields)
 
 	return invoice_list
 

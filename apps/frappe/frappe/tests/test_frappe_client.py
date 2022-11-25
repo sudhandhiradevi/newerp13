@@ -1,5 +1,5 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 
 import base64
 import unittest
@@ -8,14 +8,28 @@ import requests
 
 import frappe
 from frappe.core.doctype.user.user import generate_keys
-from frappe.frappeclient import FrappeClient, FrappeException
+from frappe.frappeclient import AuthError, FrappeClient, FrappeException
 from frappe.utils.data import get_url
 
 
 class TestFrappeClient(unittest.TestCase):
+	PASSWORD = frappe.conf.admin_password or "admin"
+
+	@classmethod
+	def setUpClass(cls) -> None:
+		site_url = get_url()
+		try:
+			FrappeClient(site_url, "Administrator", cls.PASSWORD, verify=False)
+		except AuthError:
+			raise unittest.SkipTest(
+				f"AuthError raised for {site_url} [usr=Administrator, pwd={cls.PASSWORD}]"
+			)
+
+		return super().setUpClass()
+
 	def test_insert_many(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title in ('Sing','a','song','of','sixpence')")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": ("in", ("Sing", "a", "song", "of", "sixpence"))})
 		frappe.db.commit()
 
 		server.insert_many(
@@ -35,8 +49,8 @@ class TestFrappeClient(unittest.TestCase):
 		self.assertTrue(frappe.db.get_value("Note", {"title": "sixpence"}))
 
 	def test_create_doc(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title = 'test_create'")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": "test_create"})
 		frappe.db.commit()
 
 		server.insert({"doctype": "Note", "public": True, "title": "test_create"})
@@ -44,14 +58,14 @@ class TestFrappeClient(unittest.TestCase):
 		self.assertTrue(frappe.db.get_value("Note", {"title": "test_create"}))
 
 	def test_list_docs(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
 		doc_list = server.get_list("Note")
 
 		self.assertTrue(len(doc_list))
 
 	def test_get_doc(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title = 'get_this'")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": "get_this"})
 		frappe.db.commit()
 
 		server.insert_many(
@@ -63,8 +77,8 @@ class TestFrappeClient(unittest.TestCase):
 		self.assertTrue(doc)
 
 	def test_get_value(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title = 'get_value'")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": "get_value"})
 		frappe.db.commit()
 
 		test_content = "test get value"
@@ -91,7 +105,7 @@ class TestFrappeClient(unittest.TestCase):
 		)
 
 	def test_get_single(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
 		server.set_value("Website Settings", "Website Settings", "title_prefix", "test-prefix")
 		self.assertEqual(
 			server.get_value("Website Settings", "title_prefix", "Website Settings").get("title_prefix"),
@@ -103,8 +117,8 @@ class TestFrappeClient(unittest.TestCase):
 		frappe.db.set_value("Website Settings", None, "title_prefix", "")
 
 	def test_update_doc(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title in ('Sing','sing')")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": ("in", ("Sing", "sing"))})
 		frappe.db.commit()
 
 		server.insert({"doctype": "Note", "public": True, "title": "Sing"})
@@ -115,15 +129,13 @@ class TestFrappeClient(unittest.TestCase):
 		self.assertTrue(doc["title"] == changed_title)
 
 	def test_update_child_doc(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabContact` where first_name = 'George' and last_name = 'Steevens'")
-		frappe.db.sql(
-			"delete from `tabContact` where first_name = 'William' and last_name = 'Shakespeare'"
-		)
-		frappe.db.sql("delete from `tabCommunication` where reference_doctype = 'Event'")
-		frappe.db.sql("delete from `tabCommunication Link` where link_doctype = 'Contact'")
-		frappe.db.sql("delete from `tabEvent` where subject = 'Sing a song of sixpence'")
-		frappe.db.sql("delete from `tabEvent Participants` where reference_doctype = 'Contact'")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Contact", {"first_name": "George", "last_name": "Steevens"})
+		frappe.db.delete("Contact", {"first_name": "William", "last_name": "Shakespeare"})
+		frappe.db.delete("Communication", {"reference_doctype": "Event"})
+		frappe.db.delete("Communication Link", {"link_doctype": "Contact"})
+		frappe.db.delete("Event", {"subject": "Sing a song of sixpence"})
+		frappe.db.delete("Event Participants", {"reference_doctype": "Contact"})
 		frappe.db.commit()
 
 		# create multiple contacts
@@ -159,8 +171,8 @@ class TestFrappeClient(unittest.TestCase):
 		self.assertTrue(frappe.db.exists("Communication Link", {"link_name": "William Shakespeare"}))
 
 	def test_delete_doc(self):
-		server = FrappeClient(get_url(), "Administrator", "admin", verify=False)
-		frappe.db.sql("delete from `tabNote` where title = 'delete'")
+		server = FrappeClient(get_url(), "Administrator", self.PASSWORD, verify=False)
+		frappe.db.delete("Note", {"title": "delete"})
 		frappe.db.commit()
 
 		server.insert_many(
@@ -181,7 +193,7 @@ class TestFrappeClient(unittest.TestCase):
 		)
 
 		api_key = frappe.db.get_value("User", "Administrator", "api_key")
-		header = {"Authorization": "token {}:{}".format(api_key, generated_secret)}
+		header = {"Authorization": f"token {api_key}:{generated_secret}"}
 		res = requests.post(get_url() + "/api/method/frappe.auth.get_logged_user", headers=header)
 
 		self.assertEqual(res.status_code, 200)
@@ -190,7 +202,7 @@ class TestFrappeClient(unittest.TestCase):
 
 		header = {
 			"Authorization": "Basic {}".format(
-				base64.b64encode(frappe.safe_encode("{}:{}".format(api_key, generated_secret))).decode()
+				base64.b64encode(frappe.safe_encode(f"{api_key}:{generated_secret}")).decode()
 			)
 		}
 		res = requests.post(get_url() + "/api/method/frappe.auth.get_logged_user", headers=header)
@@ -199,13 +211,13 @@ class TestFrappeClient(unittest.TestCase):
 
 		# Valid api key, invalid api secret
 		api_secret = "ksk&93nxoe3os"
-		header = {"Authorization": "token {}:{}".format(api_key, api_secret)}
+		header = {"Authorization": f"token {api_key}:{api_secret}"}
 		res = requests.post(get_url() + "/api/method/frappe.auth.get_logged_user", headers=header)
 		self.assertEqual(res.status_code, 403)
 
 		# random api key and api secret
 		api_key = "@3djdk3kld"
 		api_secret = "ksk&93nxoe3os"
-		header = {"Authorization": "token {}:{}".format(api_key, api_secret)}
+		header = {"Authorization": f"token {api_key}:{api_secret}"}
 		res = requests.post(get_url() + "/api/method/frappe.auth.get_logged_user", headers=header)
 		self.assertEqual(res.status_code, 401)

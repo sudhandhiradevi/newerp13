@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
+from frappe.tests.utils import FrappeTestCase
 
 test_dependencies = ["Contact", "Salutation"]
 
 
-class TestContact(unittest.TestCase):
+class TestContact(FrappeTestCase):
 	def test_check_default_email(self):
 		emails = [
 			{"email": "test1@example.com", "is_primary": 0},

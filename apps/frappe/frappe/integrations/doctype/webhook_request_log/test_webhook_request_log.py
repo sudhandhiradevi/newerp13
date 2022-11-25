@@ -1,9 +1,9 @@
 # Copyright (c) 2021, Frappe Technologies and Contributors
-# See license.txt
+# License: MIT. See LICENSE
 
 # import frappe
-import unittest
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestWebhookRequestLog(unittest.TestCase):
+class TestWebhookRequestLog(FrappeTestCase):
 	pass

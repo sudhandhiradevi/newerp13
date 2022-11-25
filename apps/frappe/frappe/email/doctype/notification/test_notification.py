@@ -1,15 +1,13 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
-import unittest
 from contextlib import contextmanager
 
 import frappe
 import frappe.utils
 import frappe.utils.scheduler
 from frappe.desk.form import assign_to
+from frappe.tests.utils import FrappeTestCase
 
 test_dependencies = ["User", "Notification"]
 
@@ -23,9 +21,9 @@ def get_test_notification(config):
 		notification.delete()
 
 
-class TestNotification(unittest.TestCase):
+class TestNotification(FrappeTestCase):
 	def setUp(self):
-		frappe.db.sql("""delete from `tabEmail Queue`""")
+		frappe.db.delete("Email Queue")
 		frappe.set_user("test@example.com")
 
 		if not frappe.db.exists("Notification", {"name": "ToDo Status Update"}, "name"):
@@ -72,7 +70,7 @@ class TestNotification(unittest.TestCase):
 				},
 			)
 		)
-		frappe.db.sql("""delete from `tabEmail Queue`""")
+		frappe.db.delete("Email Queue")
 
 		communication.reload()
 		communication.content = "test 2"
@@ -96,7 +94,7 @@ class TestNotification(unittest.TestCase):
 	def test_condition(self):
 		"""Check notification is triggered based on a condition."""
 		event = frappe.new_doc("Event")
-		event.subject = ("test",)
+		event.subject = "test"
 		event.event_type = "Private"
 		event.starts_on = "2014-06-06 12:00:00"
 		event.insert()
@@ -149,7 +147,7 @@ class TestNotification(unittest.TestCase):
 
 	def test_value_changed(self):
 		event = frappe.new_doc("Event")
-		event.subject = ("test",)
+		event.subject = "test"
 		event.event_type = "Private"
 		event.starts_on = "2014-06-06 12:00:00"
 		event.insert()
@@ -198,7 +196,7 @@ class TestNotification(unittest.TestCase):
 		frappe.db.commit()
 
 		event = frappe.new_doc("Event")
-		event.subject = ("test-2",)
+		event.subject = "test-2"
 		event.event_type = "Private"
 		event.starts_on = "2014-06-06 12:00:00"
 		event.insert()
@@ -212,9 +210,8 @@ class TestNotification(unittest.TestCase):
 		event.delete()
 
 	def test_date_changed(self):
-
 		event = frappe.new_doc("Event")
-		event.subject = ("test",)
+		event.subject = "test"
 		event.event_type = "Private"
 		event.starts_on = "2014-01-01 12:00:00"
 		event.insert()
@@ -267,9 +264,9 @@ class TestNotification(unittest.TestCase):
 
 	def test_cc_jinja(self):
 
-		frappe.db.sql("""delete from `tabUser` where email='test_jinja@example.com'""")
-		frappe.db.sql("""delete from `tabEmail Queue`""")
-		frappe.db.sql("""delete from `tabEmail Queue Recipient`""")
+		frappe.db.delete("User", {"email": "test_jinja@example.com"})
+		frappe.db.delete("Email Queue")
+		frappe.db.delete("Email Queue Recipient")
 
 		test_user = frappe.new_doc("User")
 		test_user.name = "test_jinja"
@@ -289,9 +286,9 @@ class TestNotification(unittest.TestCase):
 			frappe.db.get_value("Email Queue Recipient", {"recipient": "test_jinja@example.com"})
 		)
 
-		frappe.db.sql("""delete from `tabUser` where email='test_jinja@example.com'""")
-		frappe.db.sql("""delete from `tabEmail Queue`""")
-		frappe.db.sql("""delete from `tabEmail Queue Recipient`""")
+		frappe.db.delete("User", {"email": "test_jinja@example.com"})
+		frappe.db.delete("Email Queue")
+		frappe.db.delete("Email Queue Recipient")
 
 	def test_notification_to_assignee(self):
 		todo = frappe.new_doc("ToDo")
@@ -327,7 +324,7 @@ class TestNotification(unittest.TestCase):
 		self.assertTrue(email_queue)
 
 		# check if description is changed after alert since set_property_after_alert is set
-		self.assertEquals(todo.description, "Changed by Notification")
+		self.assertEqual(todo.description, "Changed by Notification")
 
 		recipients = [d.recipient for d in email_queue.recipients]
 		self.assertTrue("test2@example.com" in recipients)

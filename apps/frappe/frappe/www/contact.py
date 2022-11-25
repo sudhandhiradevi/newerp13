@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -53,7 +51,7 @@ def send_message(subject="Website Query", message="", sender=""):
 		return
 
 	# send email
-	forward_to_email = frappe.db.get_value("Contact Us Settings", None, "forward_to_email")
+	forward_to_email = frappe.db.get_single_value("Contact Us Settings", "forward_to_email")
 	if forward_to_email:
 		frappe.sendmail(recipients=forward_to_email, sender=sender, content=message, subject=subject)
 

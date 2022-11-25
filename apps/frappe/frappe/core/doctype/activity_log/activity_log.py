@@ -1,13 +1,11 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2017, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# Copyright (c) 2022, Frappe Technologies and contributors
+# License: MIT. See LICENSE
 
 import frappe
-from frappe import _
 from frappe.core.utils import set_timeline_doc
 from frappe.model.document import Document
+from frappe.query_builder import DocType, Interval
+from frappe.query_builder.functions import Now
 from frappe.utils import get_fullname, now
 
 
@@ -27,12 +25,18 @@ class ActivityLog(Document):
 		if self.reference_doctype and self.reference_name:
 			self.status = "Linked"
 
+	@staticmethod
+	def clear_old_logs(days=None):
+		if not days:
+			days = 90
+		doctype = DocType("Activity Log")
+		frappe.db.delete(doctype, filters=(doctype.modified < (Now() - Interval(days=days))))
+
 
 def on_doctype_update():
 	"""Add indexes in `tabActivity Log`"""
 	frappe.db.add_index("Activity Log", ["reference_doctype", "reference_name"])
 	frappe.db.add_index("Activity Log", ["timeline_doctype", "timeline_name"])
-	frappe.db.add_index("Activity Log", ["link_doctype", "link_name"])
 
 
 def add_authentication_log(subject, user, operation="Login", status="Success"):
@@ -45,17 +49,3 @@ def add_authentication_log(subject, user, operation="Login", status="Success"):
 			"operation": operation,
 		}
 	).insert(ignore_permissions=True, ignore_links=True)
-
-
-def clear_activity_logs(days=None):
-	"""clear 90 day old authentication logs or configured in log settings"""
-
-	if not days:
-		days = 90
-
-	frappe.db.sql(
-		"""delete from `tabActivity Log` where \
-		creation< (NOW() - INTERVAL '{0}' DAY)""".format(
-			days
-		)
-	)

@@ -260,31 +260,6 @@ class SerialNo(StockController):
 				_("Cannot delete Serial No {0}, as it is used in stock transactions").format(self.name)
 			)
 
-	def before_rename(self, old, new, merge=False):
-		if merge:
-			frappe.throw(_("Sorry, Serial Nos cannot be merged"))
-
-	def after_rename(self, old, new, merge=False):
-		"""rename serial_no text fields"""
-		for dt in frappe.db.sql(
-			"""select parent from tabDocField
-			where fieldname='serial_no' and fieldtype in ('Text', 'Small Text', 'Long Text')"""
-		):
-
-			for item in frappe.db.sql(
-				"""select name, serial_no from `tab%s`
-				where serial_no like %s"""
-				% (dt[0], frappe.db.escape("%" + old + "%"))
-			):
-
-				serial_nos = map(lambda i: new if i.upper() == old.upper() else i, item[1].split("\n"))
-				frappe.db.sql(
-					"""update `tab%s` set serial_no = %s
-					where name=%s"""
-					% (dt[0], "%s", "%s"),
-					("\n".join(list(serial_nos)), item[0]),
-				)
-
 	def update_serial_no_reference(self, serial_no=None):
 		last_sle = self.get_last_sle(serial_no)
 		self.set_purchase_details(last_sle.get("purchase_sle"))
@@ -712,7 +687,10 @@ def update_serial_nos_after_submit(controller, parentfield):
 
 		update_rejected_serial_nos = (
 			True
-			if (controller.doctype in ("Purchase Receipt", "Purchase Invoice") and d.rejected_qty)
+			if (
+				controller.doctype in ("Purchase Receipt", "Purchase Invoice", "Subcontracting Receipt")
+				and d.rejected_qty
+			)
 			else False
 		)
 		accepted_serial_nos_updated = False
@@ -725,7 +703,11 @@ def update_serial_nos_after_submit(controller, parentfield):
 			qty = d.stock_qty
 		else:
 			warehouse = d.warehouse
-			qty = d.qty if controller.doctype == "Stock Reconciliation" else d.stock_qty
+			qty = (
+				d.qty
+				if controller.doctype in ["Stock Reconciliation", "Subcontracting Receipt"]
+				else d.stock_qty
+			)
 		for sle in stock_ledger_entries:
 			if sle.voucher_detail_no == d.name:
 				if (

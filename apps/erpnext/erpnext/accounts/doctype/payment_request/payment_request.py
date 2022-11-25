@@ -6,10 +6,10 @@ import json
 
 import frappe
 from frappe import _
-from frappe.integrations.utils import get_payment_gateway_controller
 from frappe.model.document import Document
 from frappe.utils import flt, get_url, nowdate
 from frappe.utils.background_jobs import enqueue
+from payments.utils import get_payment_gateway_controller
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
 	get_company_defaults,
@@ -447,8 +447,8 @@ def make_payment_request(**args):
 		if args.order_type == "Shopping Cart" or args.mute_email:
 			pr.flags.mute_email = True
 
+		pr.insert(ignore_permissions=True)
 		if args.submit_doc:
-			pr.insert(ignore_permissions=True)
 			pr.submit()
 
 	if args.order_type == "Shopping Cart":
@@ -466,10 +466,7 @@ def get_amount(ref_doc, payment_account=None):
 	"""get amount based on doctype"""
 	dt = ref_doc.doctype
 	if dt in ["Sales Order", "Purchase Order"]:
-		if ref_doc.party_account_currency == ref_doc.currency:
-			grand_total = flt(ref_doc.grand_total) - flt(ref_doc.advance_paid)
-		else:
-			grand_total = flt(ref_doc.grand_total) - flt(ref_doc.advance_paid) / ref_doc.conversion_rate
+		grand_total = flt(ref_doc.grand_total) - flt(ref_doc.advance_paid)
 
 	elif dt in ["Sales Invoice", "Purchase Invoice"]:
 		if ref_doc.party_account_currency == ref_doc.currency:
@@ -515,7 +512,7 @@ def get_existing_payment_request_amount(ref_dt, ref_dn):
 	return flt(existing_payment_request_amount[0][0]) if existing_payment_request_amount else 0
 
 
-def get_gateway_details(args):
+def get_gateway_details(args):  # nosemgrep
 	"""return gateway and payment account of default payment gateway"""
 	if args.get("payment_gateway_account"):
 		return get_payment_gateway_account(args.get("payment_gateway_account"))

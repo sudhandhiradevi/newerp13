@@ -7,7 +7,7 @@ from collections import Counter
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_url, getdate
+from frappe.utils import get_url, getdate, now
 from frappe.utils.verified_command import get_signed_params
 
 
@@ -104,16 +104,28 @@ class Appointment(Document):
 		# Return if already linked
 		if self.party:
 			return
+
 		lead = frappe.get_doc(
 			{
 				"doctype": "Lead",
 				"lead_name": self.customer_name,
 				"email_id": self.customer_email,
-				"notes": self.customer_details,
 				"phone": self.customer_phone_number,
 			}
 		)
+
+		if self.customer_details:
+			lead.append(
+				"notes",
+				{
+					"note": self.customer_details,
+					"added_by": frappe.session.user,
+					"added_on": now(),
+				},
+			)
+
 		lead.insert(ignore_permissions=True)
+
 		# Link lead
 		self.party = lead.name
 
@@ -224,8 +236,7 @@ def _check_agent_availability(agent_email, scheduled_time):
 
 
 def _get_employee_from_user(user):
-	employee_docname = frappe.db.exists({"doctype": "Employee", "user_id": user})
+	employee_docname = frappe.db.get_value("Employee", {"user_id": user})
 	if employee_docname:
-		# frappe.db.exists returns a tuple of a tuple
-		return frappe.get_doc("Employee", employee_docname[0][0])
+		return frappe.get_doc("Employee", employee_docname)
 	return None

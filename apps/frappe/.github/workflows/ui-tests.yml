@@ -3,10 +3,20 @@ name: UI
 on:
   pull_request:
   workflow_dispatch:
+  push:
+    branches: [ develop ]
+
+concurrency:
+  group: ui-develop-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -16,22 +26,30 @@ jobs:
     name: UI Tests (Cypress)
 
     services:
-      mysql:
-        image: mariadb:10.3
+      mariadb:
+        image: mariadb:10.6
         env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: YES
+          MARIADB_ROOT_PASSWORD: travis
         ports:
           - 3306:3306
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
 
     steps:
       - name: Clone
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: '3.10'
+
+      - name: Check for valid Python & Merge Conflicts
+        run: |
+          python -m compileall -f "${GITHUB_WORKSPACE}"
+          if grep -lr --exclude-dir=node_modules "^<<<<<<< " "${GITHUB_WORKSPACE}"
+              then echo "Found merge conflicts"
+              exit 1
+          fi
 
       - name: Check if build should be run
         id: check-build
@@ -42,10 +60,10 @@ jobs:
           PR_NUMBER: ${{ github.event.number }}
           REPO_NAME: ${{ github.repository }}
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
         with:
-          node-version: '12'
+          node-version: 16
           check-latest: true
 
       - name: Add to Hosts
@@ -56,17 +74,17 @@ jobs:
 
       - name: Cache pip
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py') }}
           restore-keys: |
             ${{ runner.os }}-pip-
             ${{ runner.os }}-
 
       - name: Cache node modules
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           cache-name: cache-node-modules
         with:
@@ -82,46 +100,63 @@ jobs:
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
         id: yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-ui-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-yarn-ui-
 
       - name: Cache cypress binary
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
-          path: ~/.cache
-          key: ${{ runner.os }}-cypress-
-          restore-keys: |
-            ${{ runner.os }}-cypress-
-            ${{ runner.os }}-
+          path: ~/.cache/Cypress
+          key: ${{ runner.os }}-cypress
 
       - name: Install Dependencies
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        run: bash ${GITHUB_WORKSPACE}/.github/helper/install_dependencies.sh
+        run: |
+          bash ${GITHUB_WORKSPACE}/.github/helper/install_dependencies.sh
+          bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
           BEFORE: ${{ env.GITHUB_EVENT_PATH.before }}
           AFTER: ${{ env.GITHUB_EVENT_PATH.after }}
           TYPE: ui
-
-      - name: Install
-        if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        run: bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
-        env:
           DB: mariadb
-          TYPE: ui
+
+      - name: Verify yarn.lock
+        if: ${{ steps.check-build.outputs.build == 'strawberry' }}
+        run: |
+          cd ~/frappe-bench/apps/frappe
+          yarn install --immutable --immutable-cache --check-cache
+          git diff --exit-code yarn.lock
+
+      - name: Instrument Source Code
+        if: ${{ steps.check-build.outputs.build == 'strawberry' }}
+        run: cd ~/frappe-bench/apps/frappe/ && npx nyc instrument -x 'frappe/public/dist/**' -x 'frappe/public/js/lib/**' -x '**/*.bundle.js' --compact=false --in-place frappe
+
+      - name: Build
+        if: ${{ steps.check-build.outputs.build == 'strawberry' }}
+        run: cd ~/frappe-bench/ && bench build --apps frappe
 
       - name: Site Setup
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        run: cd ~/frappe-bench/ && bench --site test_site execute frappe.utils.install.complete_setup_wizard
+        run: |
+          cd ~/frappe-bench/
+          bench --site test_site execute frappe.utils.install.complete_setup_wizard
+          bench --site test_site execute frappe.tests.ui_test_helpers.create_test_user
 
       - name: UI Tests
         if: ${{ steps.check-build.outputs.build == 'strawberry' }}
-        run: cd ~/frappe-bench/ && bench --site test_site run-ui-tests frappe --headless --parallel --ci-build-id $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT
+        run: |
+          cd ~/frappe-bench/
+          bench --site test_site run-ui-tests frappe --headless --parallel --ci-build-id $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT -- --record
         env:
           CYPRESS_RECORD_KEY: 4a48f41c-11b3-425b-aa88-c58048fa69eb
+
+      - name: Show bench console if tests failed
+        if: ${{ failure() }}
+        run: cat ~/frappe-bench/bench_start.log

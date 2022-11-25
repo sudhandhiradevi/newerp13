@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import frappe
 import frappe.www.list
 from frappe import _
@@ -40,7 +38,6 @@ def get_context(context):
 		context.app = app
 
 	context.apps = client_apps
-	context.show_sidebar = True
 
 
 def get_first_login(client):

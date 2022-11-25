@@ -1,15 +1,16 @@
 # Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
-from __future__ import unicode_literals
-
-import unittest
 
 import frappe
+from frappe.app import make_form_dict
 from frappe.desk.search import get_names_for_mentions, search_link, search_widget
+from frappe.tests.utils import FrappeTestCase
+from frappe.utils import set_request
+from frappe.website.serve import get_response
 
 
-class TestSearch(unittest.TestCase):
+class TestSearch(FrappeTestCase):
 	def setUp(self):
 		if self._testMethodName == "test_link_field_order":
 			setup_test_link_field_order(self)
@@ -125,16 +126,15 @@ class TestSearch(unittest.TestCase):
 		result = frappe.response["results"]
 
 		# Check whether the result is sorted or not
-		self.assertEquals(self.parent_doctype_name, result[0]["value"])
+		self.assertEqual(self.parent_doctype_name, result[0]["value"])
 
 		# Check whether searching for parent also list out children
-		self.assertEquals(len(result), len(self.child_doctypes_names) + 1)
+		self.assertEqual(len(result), len(self.child_doctypes_names) + 1)
 
 	# Search for the word "pay", part of the word "pays" (country) in french.
 	def test_link_search_in_foreign_language(self):
 		try:
 			frappe.local.lang = "fr"
-			frappe.local.lang_full_dict = None  # discard translation cache
 			search_widget(doctype="DocType", txt="pay", page_length=20)
 			output = frappe.response["values"]
 
@@ -237,3 +237,22 @@ def teardown_test_link_field_order(TestCase):
 	)
 
 	TestCase.tree_doc.delete()
+
+
+class TestWebsiteSearch(FrappeTestCase):
+	def get(self, path, user="Guest"):
+		frappe.set_user(user)
+		set_request(method="GET", path=path)
+		make_form_dict(frappe.local.request)
+		response = get_response()
+		frappe.set_user("Administrator")
+		return response
+
+	def test_basic_search(self):
+
+		no_search = self.get("/search")
+		self.assertEqual(no_search.status_code, 200)
+
+		response = self.get("/search?q=b")
+		self.assertEqual(response.status_code, 200)
+		self.assertIn("Search Results", response.get_data(as_text=True))

@@ -30,6 +30,15 @@
 	}
 }
 
+.list-skeleton {
+	min-height: calc(100vh - 200px);
+
+	.list-skeleton-box {
+		background-color: var(--skeleton-bg);
+		height: 100%;
+		border-radius: var(--border-radius);
+	}
+}
 
 .no-list-sidebar {
 	&[data-page-route^="List/"], [data-page-route^="List/"]{
@@ -195,13 +204,14 @@ $level-margin-right: 8px;
 			border: 1px solid var(--dark-border-color);
 
 			&.btn-info {
-				background-color: var(--gray-400);
-				border-color: var(--gray-400);
+				background-color: var(--gray-600);
+				border-color: var(--gray-600);
 				color: var(--white);
 				font-weight: var(--text-bold);
 			}
 		}
 	}
+
 }
 
 .frappe-card {
@@ -391,7 +401,7 @@ input.list-check-all {
 	}
 
 	.filter-button.btn-primary-light {
-		color: var(--blue-500);
+		color: var(--text-on-blue);
 	}
 
 	.sort-selector {
@@ -422,6 +432,30 @@ input.list-check-all {
 		box-shadow: none;
 	}
 }
+
+.frappe-rtl {
+	.restricted-button {
+		margin: auto auto auto 5px;
+		direction: ltr;
+	}
+}
+
+// 	img {
+// 		max-height: 100%;
+// 	}
+// }
+
+// .inbox-attachment, .inbox-link {
+// 	margin-right: 7px;
+// }
+
+// .select-inbox {
+// 	padding: 30px 30px;
+// }
+
+// .inbox-value {
+// 	padding-top: 2px;
+// }
 
 // map
 .map-view-container {

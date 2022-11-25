@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
+# License: MIT. See LICENSE
 
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
 from datetime import datetime
 from unittest.mock import patch
 
@@ -65,7 +61,7 @@ class TestDashboardChart(FrappeTestCase):
 		if frappe.db.exists("Dashboard Chart", "Test Empty Dashboard Chart"):
 			frappe.delete_doc("Dashboard Chart", "Test Empty Dashboard Chart")
 
-		frappe.db.sql("delete from `tabError Log`")
+		frappe.db.delete("Error Log")
 
 		frappe.get_doc(
 			dict(
@@ -95,7 +91,7 @@ class TestDashboardChart(FrappeTestCase):
 		if frappe.db.exists("Dashboard Chart", "Test Empty Dashboard Chart 2"):
 			frappe.delete_doc("Dashboard Chart", "Test Empty Dashboard Chart 2")
 
-		frappe.db.sql("delete from `tabError Log`")
+		frappe.db.delete("Error Log")
 
 		# create one data point
 		frappe.get_doc(dict(doctype="Error Log", creation="2018-06-01 00:00:00")).insert()

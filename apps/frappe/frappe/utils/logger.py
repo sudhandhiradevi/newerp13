@@ -1,24 +1,24 @@
-# imports - compatibility imports
-from __future__ import unicode_literals
-
 # imports - standard imports
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-# imports - third party imports
-from six import text_type
-
 # imports - module imports
 import frappe
 from frappe.utils import get_sites
 
-default_log_level = logging.DEBUG
+default_log_level = logging.WARNING if frappe._dev_server else logging.ERROR
 
 
 def get_logger(
-	module=None, with_more_info=False, allow_site=True, filter=None, max_size=100_000, file_count=20
-):
+	module=None,
+	with_more_info=False,
+	allow_site=True,
+	filter=None,
+	max_size=100_000,
+	file_count=20,
+	stream_only=False,
+) -> "logging.Logger":
 	"""Application Logger for your given module
 
 	Args:
@@ -28,6 +28,7 @@ def get_logger(
 	        filter (function, optional): Add a filter function for your logger. Defaults to None.
 	        max_size (int, optional): Max file size of each log file in bytes. Defaults to 100_000.
 	        file_count (int, optional): Max count of log files to be retained via Log Rotation. Defaults to 20.
+	        stream_only (bool, optional): Whether to stream logs only to stderr (True) or use log files (False). Defaults to False.
 
 	Returns:
 	        <class 'logging.Logger'>: Returns a Python logger object with Site and Bench level logging capabilities.
@@ -40,7 +41,7 @@ def get_logger(
 	else:
 		site = False
 
-	logger_name = "{0}-{1}".format(module, site or "all")
+	logger_name = "{}-{}".format(module, site or "all")
 
 	try:
 		return frappe.loggers[logger_name]
@@ -58,12 +59,15 @@ def get_logger(
 	logger.setLevel(frappe.log_level or default_log_level)
 	logger.propagate = False
 
-	formatter = logging.Formatter("%(asctime)s %(levelname)s {0} %(message)s".format(module))
-	handler = RotatingFileHandler(log_filename, maxBytes=max_size, backupCount=file_count)
+	formatter = logging.Formatter(f"%(asctime)s %(levelname)s {module} %(message)s")
+	if stream_only:
+		handler = logging.StreamHandler()
+	else:
+		handler = RotatingFileHandler(log_filename, maxBytes=max_size, backupCount=file_count)
 	handler.setFormatter(formatter)
 	logger.addHandler(handler)
 
-	if site:
+	if site and not stream_only:
 		sitelog_filename = os.path.join(site, "logs", logfile)
 		site_handler = RotatingFileHandler(sitelog_filename, maxBytes=max_size, backupCount=file_count)
 		site_handler.setFormatter(formatter)
@@ -83,15 +87,15 @@ def get_logger(
 class SiteContextFilter(logging.Filter):
 	"""This is a filter which injects request information (if available) into the log."""
 
-	def filter(self, record):
-		if "Form Dict" not in text_type(record.msg):
+	def filter(self, record) -> bool:
+		if "Form Dict" not in str(record.msg):
 			site = getattr(frappe.local, "site", None)
 			form_dict = getattr(frappe.local, "form_dict", None)
-			record.msg = text_type(record.msg) + "\nSite: {0}\nForm Dict: {1}".format(site, form_dict)
+			record.msg = str(record.msg) + f"\nSite: {site}\nForm Dict: {form_dict}"
 			return True
 
 
-def set_log_level(level):
+def set_log_level(level: int) -> None:
 	"""Use this method to set log level to something other than the default DEBUG"""
 	frappe.log_level = getattr(logging, (level or "").upper(), None) or default_log_level
 	frappe.loggers = {}

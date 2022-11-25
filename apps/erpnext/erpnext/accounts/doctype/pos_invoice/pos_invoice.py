@@ -5,7 +5,6 @@
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_link_to_form, getdate, nowdate
-from six import iteritems
 
 from erpnext.accounts.doctype.loyalty_program.loyalty_program import validate_loyalty_points
 from erpnext.accounts.doctype.payment_request.payment_request import make_payment_request
@@ -97,6 +96,7 @@ class POSInvoice(SalesInvoice):
 			)
 
 	def on_cancel(self):
+		self.ignore_linked_doctypes = "Payment Ledger Entry"
 		# run on cancel method of selling controller
 		super(SalesInvoice, self).on_cancel()
 		if not self.is_return and self.loyalty_program:
@@ -214,12 +214,12 @@ class POSInvoice(SalesInvoice):
 		if self.is_return:
 			return
 
-		if self.docstatus == 0 and not frappe.db.get_value(
+		if self.docstatus.is_draft() and not frappe.db.get_value(
 			"POS Profile", self.pos_profile, "validate_stock_on_save"
 		):
 			return
 
-		allow_negative_stock = frappe.db.get_single_value("Stock Settings", "allow_negative_stock")
+		from erpnext.stock.stock_ledger import is_negative_stock_allowed
 
 		for d in self.get("items"):
 			if d.serial_no:
@@ -229,7 +229,7 @@ class POSInvoice(SalesInvoice):
 			elif d.batch_no:
 				self.validate_pos_reserved_batch_qty(d)
 			else:
-				if allow_negative_stock:
+				if is_negative_stock_allowed(item_code=d.item_code):
 					return
 
 				available_stock, is_stock_item = get_stock_availability(d.item_code, d.warehouse)
@@ -507,7 +507,7 @@ class POSInvoice(SalesInvoice):
 					profile_details = get_pos_profile_item_details(
 						profile.get("company"), frappe._dict(item.as_dict()), profile
 					)
-					for fname, val in iteritems(profile_details):
+					for fname, val in profile_details.items():
 						if (not for_validate) or (for_validate and not item.get(fname)):
 							item.set(fname, val)
 
@@ -576,7 +576,6 @@ class POSInvoice(SalesInvoice):
 				pay_req = self.get_existing_payment_request(pay)
 				if not pay_req:
 					pay_req = self.get_new_payment_request(pay)
-					pay_req.insert()
 					pay_req.submit()
 				else:
 					pay_req.request_phone_payment()
@@ -614,16 +613,15 @@ class POSInvoice(SalesInvoice):
 			["name"],
 		)
 
-		args = {
-			"doctype": "Payment Request",
+		filters = {
 			"reference_doctype": "POS Invoice",
 			"reference_name": self.name,
 			"payment_gateway_account": payment_gateway_account,
 			"email_to": self.contact_mobile,
 		}
-		pr = frappe.db.exists(args)
+		pr = frappe.db.get_value("Payment Request", filters=filters)
 		if pr:
-			return frappe.get_doc("Payment Request", pr[0][0])
+			return frappe.get_doc("Payment Request", pr)
 
 
 @frappe.whitelist()
@@ -702,9 +700,7 @@ def make_sales_return(source_name, target_doc=None):
 def make_merge_log(invoices):
 	import json
 
-	from six import string_types
-
-	if isinstance(invoices, string_types):
+	if isinstance(invoices, str):
 		invoices = json.loads(invoices)
 
 	if len(invoices) == 0:
@@ -747,7 +743,3 @@ def add_return_modes(doc, pos_profile):
 		]:
 			payment_mode = get_mode_of_payment_info(mode_of_payment, doc.company)
 			append_payment(payment_mode[0])
-
-
-def on_doctype_update():
-	frappe.db.add_index("POS Invoice", ["return_against"])

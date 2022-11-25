@@ -141,9 +141,14 @@ def repost(doc):
 		doc.set_status("Completed")
 
 	except Exception as e:
+		if frappe.flags.in_test:
+			# Don't silently fail in tests,
+			# there is no reason for reposts to fail in CI
+			raise
+
 		frappe.db.rollback()
 		traceback = frappe.get_traceback()
-		frappe.log_error(traceback)
+		doc.log_error("Unable to repost item valuation")
 
 		message = frappe.message_log.pop() if frappe.message_log else ""
 		if traceback:
@@ -161,11 +166,11 @@ def repost(doc):
 def repost_sl_entries(doc):
 	if doc.based_on == "Transaction":
 		repost_future_sle(
-			doc=doc,
 			voucher_type=doc.voucher_type,
 			voucher_no=doc.voucher_no,
 			allow_negative_stock=doc.allow_negative_stock,
 			via_landed_cost_voucher=doc.via_landed_cost_voucher,
+			doc=doc,
 		)
 	else:
 		repost_future_sle(

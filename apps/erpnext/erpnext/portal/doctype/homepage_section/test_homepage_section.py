@@ -6,7 +6,7 @@ import unittest
 import frappe
 from bs4 import BeautifulSoup
 from frappe.utils import set_request
-from frappe.website.render import render
+from frappe.website.serve import get_response
 
 
 class TestHomepageSection(unittest.TestCase):
@@ -33,12 +33,12 @@ class TestHomepageSection(unittest.TestCase):
 					],
 					"no_of_columns": 3,
 				}
-			).insert()
+			).insert(ignore_if_duplicate=True)
 		except frappe.DuplicateEntryError:
 			pass
 
 		set_request(method="GET", path="home")
-		response = render()
+		response = get_response()
 
 		self.assertEqual(response.status_code, 200)
 
@@ -57,7 +57,11 @@ class TestHomepageSection(unittest.TestCase):
 		self.assertEqual(cards[0].h5.text, "Card 1")
 		self.assertEqual(cards[0].a["href"], "/card-1")
 		self.assertEqual(cards[1].p.text, "Subtitle 2")
-		self.assertEqual(cards[1].find(class_="website-image-lazy")["data-src"], "test.jpg")
+
+		img = cards[1].find(class_="card-img-top")
+
+		self.assertEqual(img["src"], "test.jpg")
+		self.assertEqual(img["loading"], "lazy")
 
 		# cleanup
 		frappe.db.rollback()
@@ -73,7 +77,7 @@ class TestHomepageSection(unittest.TestCase):
 		).insert()
 
 		set_request(method="GET", path="home")
-		response = render()
+		response = get_response()
 
 		self.assertEqual(response.status_code, 200)
 

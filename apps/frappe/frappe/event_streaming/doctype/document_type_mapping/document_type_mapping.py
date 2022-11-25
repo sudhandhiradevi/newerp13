@@ -1,16 +1,10 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import json
-
-from six import iteritems
 
 import frappe
 from frappe import _
-from frappe.model import default_fields
+from frappe.model import child_table_fields, default_fields
 from frappe.model.document import Document
 
 
@@ -21,7 +15,7 @@ class DocumentTypeMapping(Document):
 	def validate_inner_mapping(self):
 		meta = frappe.get_meta(self.local_doctype)
 		for field_map in self.field_mapping:
-			if field_map.local_fieldname not in default_fields:
+			if field_map.local_fieldname not in (default_fields + child_table_fields):
 				field = meta.get_field(field_map.local_fieldname)
 				if not field:
 					frappe.throw(_("Row #{0}: Invalid Local Fieldname").format(field_map.idx))
@@ -107,7 +101,7 @@ class DocumentTypeMapping(Document):
 	def get_mapped_dependency(self, mapping, producer_site, doc):
 		inner_mapping = frappe.get_doc("Document Type Mapping", mapping.mapping)
 		filters = json.loads(mapping.remote_value_filters)
-		for key, value in iteritems(filters):
+		for key, value in filters.items():
 			if value.startswith("eval:"):
 				val = frappe.safe_eval(value[5:], None, dict(doc=doc))
 				filters[key] = val
@@ -124,7 +118,7 @@ class DocumentTypeMapping(Document):
 	def map_rows_removed(self, update_diff, mapping):
 		removed = []
 		mapping["removed"] = update_diff.removed
-		for key, value in iteritems(update_diff.removed.copy()):
+		for key, value in update_diff.removed.copy().items():
 			local_table_name = frappe.db.get_value(
 				"Document Type Field Mapping",
 				{"remote_fieldname": key, "parent": self.name},
@@ -141,7 +135,7 @@ class DocumentTypeMapping(Document):
 
 	def map_rows(self, update_diff, mapping, producer_site, operation):
 		remote_fields = []
-		for tablename, entries in iteritems(update_diff.get(operation).copy()):
+		for tablename, entries in update_diff.get(operation).copy().items():
 			local_table_name = frappe.db.get_value(
 				"Document Type Field Mapping", {"remote_fieldname": tablename}, "local_fieldname"
 			)

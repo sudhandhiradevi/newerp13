@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
 from frappe.desk.form.assign_to import add as assign_to
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils.testutils import add_custom_field, clear_custom_fields
 
 from .energy_point_log import create_review_points_log
@@ -14,14 +10,27 @@ from .energy_point_log import get_energy_points as _get_energy_points
 from .energy_point_log import review
 
 
-class TestEnergyPointLog(unittest.TestCase):
+class TestEnergyPointLog(FrappeTestCase):
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		settings = frappe.get_single("Energy Point Settings")
+		settings.enabled = 1
+		settings.save()
+
+	@classmethod
+	def tearDownClass(cls):
+		settings = frappe.get_single("Energy Point Settings")
+		settings.enabled = 0
+		settings.save()
+
 	def setUp(self):
 		frappe.cache().delete_value("energy_point_rule_map")
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
-		frappe.db.sql("DELETE FROM `tabEnergy Point Log`")
-		frappe.db.sql("DELETE FROM `tabEnergy Point Rule`")
+		frappe.db.delete("Energy Point Log")
+		frappe.db.delete("Energy Point Rule")
 		frappe.cache().delete_value("energy_point_rule_map")
 
 	def test_user_energy_point(self):
@@ -85,7 +94,7 @@ class TestEnergyPointLog(unittest.TestCase):
 		points_after_closing_todo = get_points("test@example.com")
 
 		# test max_points cap
-		self.assertNotEquals(
+		self.assertNotEqual(
 			points_after_closing_todo,
 			energy_point_of_user + round(todo_point_rule.points * multiplier_value),
 		)
@@ -138,11 +147,10 @@ class TestEnergyPointLog(unittest.TestCase):
 
 		# for criticism
 		criticism_points = 2
+		todo = create_a_todo(description="Bad patch")
 		energy_points_before_review = energy_points_after_review
 		review_points_before_review = review_points_after_review
-		review(
-			created_todo, criticism_points, "test@example.com", "You could have done better.", "Criticism"
-		)
+		review(todo, criticism_points, "test@example.com", "You could have done better.", "Criticism")
 		energy_points_after_review = get_points("test@example.com")
 		review_points_after_review = get_points("test2@example.com", "review_points")
 		self.assertEqual(energy_points_after_review, energy_points_before_review - criticism_points)
@@ -350,13 +358,15 @@ def create_energy_point_rule_for_todo(
 	).insert(ignore_permissions=1)
 
 
-def create_a_todo():
+def create_a_todo(description=None):
+	if not description:
+		description = "Fix a bug"
 	return frappe.get_doc(
 		{
 			"doctype": "ToDo",
-			"description": "Fix a bug",
+			"description": description,
 		}
-	).insert()
+	).insert(ignore_permissions=True)
 
 
 def get_points(user, point_type="energy_points"):

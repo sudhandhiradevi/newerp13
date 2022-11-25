@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
+# Copyright (c) 2021, Frappe Technologies and contributors
+# License: MIT. See LICENSE
+from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
-# imports - standard imports
-from __future__ import unicode_literals
-
-# imports - module imports
 import frappe
 from frappe.model.document import Document
+from frappe.utils import cstr
 
 
 class AccessLog(Document):
@@ -38,6 +35,7 @@ def make_access_log(
 
 
 @frappe.write_only()
+@retry(stop=stop_after_attempt(3), retry=retry_if_exception_type(frappe.DuplicateEntryError))
 def _make_access_log(
 	doctype=None,
 	document=None,
@@ -51,7 +49,7 @@ def _make_access_log(
 	user = frappe.session.user
 	in_request = frappe.request and frappe.request.method == "GET"
 
-	doc = frappe.get_doc(
+	frappe.get_doc(
 		{
 			"doctype": "Access Log",
 			"user": user,
@@ -61,11 +59,10 @@ def _make_access_log(
 			"report_name": report_name,
 			"page": page,
 			"method": method,
-			"filters": frappe.utils.cstr(filters) if filters else None,
+			"filters": cstr(filters) or None,
 			"columns": columns,
 		}
-	)
-	doc.insert(ignore_permissions=True)
+	).db_insert()
 
 	# `frappe.db.commit` added because insert doesnt `commit` when called in GET requests like `printview`
 	# dont commit in test mode. It must be tempting to put this block along with the in_request in the

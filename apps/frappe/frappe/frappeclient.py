@@ -1,15 +1,13 @@
 """
 FrappeClient is a library that helps you connect with other frappe systems
 """
-from __future__ import print_function, unicode_literals
-
 import base64
 import json
 
 import requests
-from six import iteritems, string_types
 
 import frappe
+from frappe.utils.data import cstr
 
 
 class AuthError(Exception):
@@ -28,7 +26,7 @@ class FrappeException(Exception):
 	pass
 
 
-class FrappeClient(object):
+class FrappeClient:
 	def __init__(
 		self,
 		url,
@@ -87,11 +85,9 @@ class FrappeClient(object):
 
 	def setup_key_authentication_headers(self):
 		if self.api_key and self.api_secret:
-			token = base64.b64encode(
-				("{}:{}".format(self.api_key, self.api_secret)).encode("utf-8")
-			).decode("utf-8")
+			token = base64.b64encode((f"{self.api_key}:{self.api_secret}").encode()).decode("utf-8")
 			auth_header = {
-				"Authorization": "Basic {}".format(token),
+				"Authorization": f"Basic {token}",
 			}
 			self.headers.update(auth_header)
 
@@ -112,7 +108,7 @@ class FrappeClient(object):
 
 	def get_list(self, doctype, fields='["name"]', filters=None, limit_start=0, limit_page_length=0):
 		"""Returns list of records of a particular type"""
-		if not isinstance(fields, string_types):
+		if not isinstance(fields, str):
 			fields = json.dumps(fields)
 		params = {
 			"fields": fields,
@@ -149,7 +145,7 @@ class FrappeClient(object):
 		"""Update a remote document
 
 		:param doc: dict or Document object to be updated remotely. `name` is mandatory for this"""
-		url = self.url + "/api/resource/" + doc.get("doctype") + "/" + doc.get("name")
+		url = self.url + "/api/resource/" + doc.get("doctype") + "/" + cstr(doc.get("name"))
 		res = self.session.put(
 			url, data={"data": frappe.as_json(doc)}, verify=self.verify, headers=self.headers
 		)
@@ -227,7 +223,7 @@ class FrappeClient(object):
 			params["fields"] = json.dumps(fields)
 
 		res = self.session.get(
-			self.url + "/api/resource/" + doctype + "/" + name,
+			self.url + "/api/resource/" + doctype + "/" + cstr(name),
 			params=params,
 			verify=self.verify,
 			headers=self.headers,
@@ -268,7 +264,7 @@ class FrappeClient(object):
 		# build - attach children to parents
 		if tables:
 			docs = [frappe._dict(doc) for doc in docs]
-			docs_map = dict((doc.name, doc) for doc in docs)
+			docs_map = {doc.name: doc for doc in docs}
 
 			for fieldname in tables:
 				for child in tables[fieldname]:
@@ -329,10 +325,7 @@ class FrappeClient(object):
 		if params is None:
 			params = {}
 		res = self.session.get(
-			"{0}/api/method/{1}".format(self.url, method),
-			params=params,
-			verify=self.verify,
-			headers=self.headers,
+			f"{self.url}/api/method/{method}", params=params, verify=self.verify, headers=self.headers
 		)
 		return self.post_process(res)
 
@@ -340,10 +333,7 @@ class FrappeClient(object):
 		if params is None:
 			params = {}
 		res = self.session.post(
-			"{0}/api/method/{1}".format(self.url, method),
-			params=params,
-			verify=self.verify,
-			headers=self.headers,
+			f"{self.url}/api/method/{method}", params=params, verify=self.verify, headers=self.headers
 		)
 		return self.post_process(res)
 
@@ -363,7 +353,7 @@ class FrappeClient(object):
 
 	def preprocess(self, params):
 		"""convert dicts, lists to json"""
-		for key, value in iteritems(params):
+		for key, value in params.items():
 			if isinstance(value, (dict, list)):
 				params[key] = json.dumps(value)
 

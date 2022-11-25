@@ -1,10 +1,5 @@
 # Copyright (c) 2013, Frappe Technologies Pvt. Ltd. and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
-
-from six import iteritems
-
+# License: MIT. See LICENSE
 import frappe
 from frappe import _
 
@@ -88,7 +83,7 @@ def get_reference_addresses_and_contact(reference_doctype, reference_name):
 		reference_doctype, "Contact", reference_list, reference_details
 	)
 
-	for reference_name, details in iteritems(reference_details):
+	for reference_name, details in reference_details.items():
 		addresses = details.get("address", [])
 		contacts = details.get("contact", [])
 		if not any([addresses, contacts]):

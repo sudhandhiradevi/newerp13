@@ -1,10 +1,5 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2017, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# Copyright (c) 2021, Frappe Technologies and Contributors
+# See LICENSE
 import frappe
 from frappe.core.doctype.doctype.test_doctype import new_doctype
 from frappe.core.doctype.user_permission.user_permission import (
@@ -12,18 +7,18 @@ from frappe.core.doctype.user_permission.user_permission import (
 	remove_applicable,
 )
 from frappe.permissions import has_user_permission
+from frappe.tests.utils import FrappeTestCase
 from frappe.website.doctype.blog_post.test_blog_post import make_test_blog
 
 
-class TestUserPermission(unittest.TestCase):
+class TestUserPermission(FrappeTestCase):
 	def setUp(self):
-		frappe.db.sql(
-			"""DELETE FROM `tabUser Permission`
-			WHERE `user` in (
-				'test_bulk_creation_update@example.com',
-				'test_user_perm1@example.com',
-				'nested_doc_user@example.com')"""
+		test_users = (
+			"test_bulk_creation_update@example.com",
+			"test_user_perm1@example.com",
+			"nested_doc_user@example.com",
 		)
+		frappe.db.delete("User Permission", {"user": ("in", test_users)})
 		frappe.delete_doc_if_exists("DocType", "Person")
 		frappe.db.sql_ddl("DROP TABLE IF EXISTS `tabPerson`")
 		frappe.delete_doc_if_exists("DocType", "Doc A")
@@ -66,7 +61,7 @@ class TestUserPermission(unittest.TestCase):
 		frappe.set_user("test_user_perm1@example.com")
 		doc = frappe.new_doc("Blog Post")
 
-		self.assertEquals(doc.blog_category, "general")
+		self.assertEqual(doc.blog_category, "general")
 		frappe.set_user("Administrator")
 
 	def test_apply_to_all(self):
@@ -74,7 +69,7 @@ class TestUserPermission(unittest.TestCase):
 		user = create_user("test_bulk_creation_update@example.com")
 		param = get_params(user, "User", user.name)
 		is_created = add_user_permissions(param)
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 
 	def test_for_apply_to_all_on_update_from_apply_all(self):
 		user = create_user("test_bulk_creation_update@example.com")
@@ -83,11 +78,11 @@ class TestUserPermission(unittest.TestCase):
 		# Initially create User Permission document with apply_to_all checked
 		is_created = add_user_permissions(param)
 
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 		is_created = add_user_permissions(param)
 
 		# User Permission should not be changed
-		self.assertEquals(is_created, 0)
+		self.assertEqual(is_created, 0)
 
 	def test_for_applicable_on_update_from_apply_to_all(self):
 		"""Update User Permission from all to some applicable Doctypes"""
@@ -97,7 +92,7 @@ class TestUserPermission(unittest.TestCase):
 		# Initially create User Permission document with apply_to_all checked
 		is_created = add_user_permissions(get_params(user, "User", user.name))
 
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 
 		is_created = add_user_permissions(param)
 		frappe.db.commit()
@@ -116,7 +111,7 @@ class TestUserPermission(unittest.TestCase):
 		# Check that User Permissions for applicable is created
 		self.assertIsNotNone(is_created_applicable_first)
 		self.assertIsNotNone(is_created_applicable_second)
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 
 	def test_for_apply_to_all_on_update_from_applicable(self):
 		"""Update User Permission from some to all applicable Doctypes"""
@@ -128,7 +123,7 @@ class TestUserPermission(unittest.TestCase):
 			get_params(user, "User", user.name, applicable=["Comment", "Contact"])
 		)
 
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 
 		is_created = add_user_permissions(param)
 		is_created_apply_to_all = frappe.db.exists("User Permission", get_exists_param(user))
@@ -145,7 +140,7 @@ class TestUserPermission(unittest.TestCase):
 		# Check that all User Permission with applicable is removed
 		self.assertIsNone(removed_applicable_first)
 		self.assertIsNone(removed_applicable_second)
-		self.assertEquals(is_created, 1)
+		self.assertEqual(is_created, 1)
 
 	def test_user_perm_for_nested_doctype(self):
 		"""Test if descendants' visibility is controlled for a nested DocType."""
@@ -220,7 +215,7 @@ class TestUserPermission(unittest.TestCase):
 
 		# User perm is created on ToDo but for doctype Assignment Rule only
 		# it should not have impact on Doc A
-		self.assertEquals(new_doc.doc, "ToDo")
+		self.assertEqual(new_doc.doc, "ToDo")
 
 		frappe.set_user("Administrator")
 		remove_applicable(["Assignment Rule"], "new_doc_test@example.com", "DocType", "ToDo")
@@ -268,7 +263,7 @@ class TestUserPermission(unittest.TestCase):
 
 		# User perm is created on ToDo but for doctype Assignment Rule only
 		# it should not have impact on Doc A
-		self.assertEquals(new_doc.doc, "ToDo")
+		self.assertEqual(new_doc.doc, "ToDo")
 
 		frappe.set_user("Administrator")
 		clear_session_defaults()

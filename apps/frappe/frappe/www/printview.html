@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>{{ title }}</title>
 	<meta name="generator" content="frappe">
-	{{ include_style("printview.css") }}
+	{{ include_style('print.bundle.css') }}
 	{% if print_style %}
 		<style>
 		{{ print_style }}
@@ -13,9 +13,6 @@
 	{% endif %}
 </head>
 <body>
-	{% if is_invalid_print %}
-	{{ body }}
-	{% else %}
 	<div class="action-banner print-hide">
 		<a class="p-2" onclick="window.print();">
 			{{ _("Print") }}
@@ -44,7 +41,6 @@
 			footer_html.style.marginTop = '20px';
 		});
 	</script>
-	{% endif %}
 </body>
 {%- if comment -%}
 <!-- {{ comment }} -->

@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies Pvt. Ltd. and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe.model import no_value_fields, table_fields
@@ -224,13 +221,20 @@ def get_unread_update_logs(consumer_name, dt, dn):
 		SELECT
 			update_log.name
 		FROM `tabEvent Update Log` update_log
-		JOIN `tabEvent Update Log Consumer` consumer ON consumer.parent = update_log.name
+		JOIN `tabEvent Update Log Consumer` consumer ON consumer.parent = %(log_name)s
 		WHERE
 			consumer.consumer = %(consumer)s
 			AND update_log.ref_doctype = %(dt)s
 			AND update_log.docname = %(dn)s
 	""",
-			{"consumer": consumer_name, "dt": dt, "dn": dn},
+			{
+				"consumer": consumer_name,
+				"dt": dt,
+				"dn": dn,
+				"log_name": "update_log.name"
+				if frappe.conf.db_type == "mariadb"
+				else "CAST(update_log.name AS VARCHAR)",
+			},
 			as_dict=0,
 		)
 	]

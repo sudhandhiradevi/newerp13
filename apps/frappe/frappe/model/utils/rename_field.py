@@ -1,8 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import print_function, unicode_literals
-
+# License: MIT. See LICENSE
 import json
 
 import frappe
@@ -43,7 +40,7 @@ def rename_field(doctype, old_fieldname, new_fieldname):
 			)
 		else:
 			# copy field value
-			frappe.db.sql("""update `tab%s` set `%s`=`%s`""" % (doctype, new_fieldname, old_fieldname))
+			frappe.db.sql(f"""update `tab{doctype}` set `{new_fieldname}`=`{old_fieldname}`""")
 
 		update_reports(doctype, old_fieldname, new_fieldname)
 		update_users_report_view_settings(doctype, old_fieldname, new_fieldname)

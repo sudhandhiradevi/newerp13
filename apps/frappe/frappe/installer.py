@@ -1,14 +1,34 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 
 import json
 import os
+import re
+import subprocess
 import sys
 from collections import OrderedDict
-from typing import Dict, List
+from contextlib import suppress
+from shutil import which
+
+import click
 
 import frappe
 from frappe.defaults import _clear_cache
+from frappe.utils import cint, is_git_url
+from frappe.utils.dashboard import sync_dashboards
+
+
+def _is_scheduler_enabled() -> bool:
+	enable_scheduler = False
+	try:
+		frappe.connect()
+		enable_scheduler = cint(frappe.db.get_single_value("System Settings", "enable_scheduler"))
+	except Exception:
+		pass
+	finally:
+		frappe.db.close()
+
+	return bool(enable_scheduler)
 
 
 def _new_site(
@@ -27,27 +47,25 @@ def _new_site(
 	db_type=None,
 	db_host=None,
 	db_port=None,
-	new_site=False,
 ):
 	"""Install a new Frappe site"""
 
+	from frappe.utils import get_site_path, scheduler, touch_file
+
 	if not force and os.path.exists(site):
-		print("Site {0} already exists".format(site))
+		print(f"Site {site} already exists")
 		sys.exit(1)
 
 	if no_mariadb_socket and not db_type == "mariadb":
 		print("--no-mariadb-socket requires db_type to be set to mariadb.")
 		sys.exit(1)
 
+	frappe.init(site=site)
+
 	if not db_name:
 		import hashlib
 
-		db_name = "_" + hashlib.sha1(site.encode()).hexdigest()[:16]
-
-	frappe.init(site=site)
-
-	from frappe.commands.scheduler import _is_scheduler_enabled
-	from frappe.utils import get_site_path, scheduler, touch_file
+		db_name = "_" + hashlib.sha1(os.path.realpath(frappe.get_site_path()).encode()).hexdigest()[:16]
 
 	try:
 		# enable scheduler post install?
@@ -79,7 +97,13 @@ def _new_site(
 	)
 
 	for app in apps_to_install:
-		install_app(app, verbose=verbose, set_as_patched=not source_sql)
+		# NOTE: not using force here for 2 reasons:
+		# 	1. It's not really needed here as we've freshly installed a new db
+		# 	2. If someone uses a sql file to do restore and that file already had
+		# 		installed_apps then it might cause problems as that sql file can be of any previous version(s)
+		# 		which might be incompatible with the current version and using force might cause problems.
+		# 		Example: the DocType DocType might not have `migration_hash` column which will cause failure in the restore.
+		install_app(app, verbose=verbose, set_as_patched=not source_sql, force=False)
 
 	os.remove(installing)
 
@@ -142,7 +166,90 @@ def install_db(
 	frappe.flags.in_install_db = False
 
 
-def install_app(name, verbose=False, set_as_patched=True):
+def find_org(org_repo: str) -> tuple[str, str]:
+	"""find the org a repo is in
+
+	find_org()
+	ref -> https://github.com/frappe/bench/blob/develop/bench/utils/__init__.py#L390
+
+	:param org_repo:
+	:type org_repo: str
+
+	:raises InvalidRemoteException: if the org is not found
+
+	:return: organisation and repository
+	:rtype: Tuple[str, str]
+	"""
+	import requests
+
+	from frappe.exceptions import InvalidRemoteException
+
+	for org in ["frappe", "erpnext"]:
+		response = requests.head(f"https://api.github.com/repos/{org}/{org_repo}")
+		if response.status_code == 400:
+			response = requests.head(f"https://github.com/{org}/{org_repo}")
+		if response.ok:
+			return org, org_repo
+
+	raise InvalidRemoteException
+
+
+def fetch_details_from_tag(_tag: str) -> tuple[str, str, str]:
+	"""parse org, repo, tag from string
+
+	fetch_details_from_tag()
+	ref -> https://github.com/frappe/bench/blob/develop/bench/utils/__init__.py#L403
+
+	:param _tag: input string
+	:type _tag: str
+
+	:return: organisation, repostitory, tag
+	:rtype: Tuple[str, str, str]
+	"""
+	app_tag = _tag.split("@")
+	org_repo = app_tag[0].split("/")
+
+	try:
+		repo, tag = app_tag
+	except ValueError:
+		repo, tag = app_tag + [None]
+
+	try:
+		org, repo = org_repo
+	except Exception:
+		org, repo = find_org(org_repo[0])
+
+	return org, repo, tag
+
+
+def parse_app_name(name: str) -> str:
+	"""parse repo name from name
+
+	__setup_details_from_git()
+	ref -> https://github.com/frappe/bench/blob/develop/bench/app.py#L114
+
+
+	:param name: git tag
+	:type name: str
+
+	:return: repository name
+	:rtype: str
+	"""
+	name = name.rstrip("/")
+	if os.path.exists(name):
+		repo = os.path.split(name)[-1]
+	elif is_git_url(name):
+		if name.startswith("git@") or name.startswith("ssh://"):
+			_repo = name.split(":")[1].rsplit("/", 1)[1]
+		else:
+			_repo = name.rsplit("/", 2)[2]
+		repo = _repo.split(".")[0]
+	else:
+		_, repo, _ = fetch_details_from_tag(name)
+	return repo
+
+
+def install_app(name, verbose=False, set_as_patched=True, force=False):
 	from frappe.core.doctype.scheduled_job_type.scheduled_job_type import sync_jobs
 	from frappe.model.sync import sync_for
 	from frappe.modules.utils import sync_customizations
@@ -158,7 +265,8 @@ def install_app(name, verbose=False, set_as_patched=True):
 	# install pre-requisites
 	if app_hooks.required_apps:
 		for app in app_hooks.required_apps:
-			install_app(app, verbose=verbose)
+			required_app = parse_app_name(app)
+			install_app(required_app, verbose=verbose, force=force)
 
 	frappe.flags.in_install = name
 	frappe.clear_cache()
@@ -166,24 +274,24 @@ def install_app(name, verbose=False, set_as_patched=True):
 	if name not in frappe.get_all_apps():
 		raise Exception("App not in apps.txt")
 
-	if name in installed_apps:
-		frappe.msgprint(frappe._("App {0} already installed").format(name))
+	if not force and name in installed_apps:
+		click.secho(f"App {name} already installed", fg="yellow")
 		return
 
-	print("\nInstalling {0}...".format(name))
+	print(f"\nInstalling {name}...")
 
 	if name != "frappe":
 		frappe.only_for("System Manager")
 
 	for before_install in app_hooks.before_install or []:
 		out = frappe.get_attr(before_install)()
-		if out == False:
+		if out is False:
 			return
 
 	if name != "frappe":
-		add_module_defs(name)
+		add_module_defs(name, ignore_if_duplicate=force)
 
-	sync_for(name, force=True, sync_everything=True, verbose=verbose, reset_permissions=True)
+	sync_for(name, force=force, reset_permissions=True)
 
 	add_to_installed_apps(name)
 
@@ -198,6 +306,7 @@ def install_app(name, verbose=False, set_as_patched=True):
 	sync_jobs()
 	sync_fixtures(name)
 	sync_customizations(name)
+	sync_dashboards(name)
 
 	for after_sync in app_hooks.after_sync or []:
 		frappe.get_attr(after_sync)()  #
@@ -207,7 +316,7 @@ def install_app(name, verbose=False, set_as_patched=True):
 
 def add_to_installed_apps(app_name, rebuild_website=True):
 	installed_apps = frappe.get_installed_apps()
-	if not app_name in installed_apps:
+	if app_name not in installed_apps:
 		installed_apps.append(app_name)
 		frappe.db.set_global("installed_apps", json.dumps(installed_apps))
 		frappe.db.commit()
@@ -230,7 +339,6 @@ def remove_from_installed_apps(app_name):
 
 def remove_app(app_name, dry_run=False, yes=False, no_backup=False, force=False):
 	"""Remove app and all linked to the app's module with the app from a site."""
-	import click
 
 	site = frappe.local.site
 	app_hooks = frappe.get_hooks(app_name=app_name)
@@ -279,7 +387,7 @@ def remove_app(app_name, dry_run=False, yes=False, no_backup=False, force=False)
 	frappe.flags.in_uninstall = False
 
 
-def _delete_modules(modules: List[str], dry_run: bool) -> List[str]:
+def _delete_modules(modules: list[str], dry_run: bool) -> list[str]:
 	"""Delete modules belonging to the app and all related doctypes.
 
 	Note: All record linked linked to Module Def are also deleted.
@@ -312,7 +420,7 @@ def _delete_modules(modules: List[str], dry_run: bool) -> List[str]:
 
 
 def _delete_linked_documents(
-	module_name: str, doctype_linkfield_map: Dict[str, str], dry_run: bool
+	module_name: str, doctype_linkfield_map: dict[str, str], dry_run: bool
 ) -> None:
 
 	"""Deleted all records linked with module def"""
@@ -323,7 +431,7 @@ def _delete_linked_documents(
 				frappe.delete_doc(doctype, record, ignore_on_trash=True, force=True)
 
 
-def _get_module_linked_doctype_field_map() -> Dict[str, str]:
+def _get_module_linked_doctype_field_map() -> dict[str, str]:
 	"""Get all the doctypes which have module linked with them.
 
 	returns ordered dictionary with doctype->link field mapping."""
@@ -352,7 +460,7 @@ def _get_module_linked_doctype_field_map() -> Dict[str, str]:
 	return doctype_to_field_map
 
 
-def _delete_doctypes(doctypes: List[str], dry_run: bool) -> None:
+def _delete_doctypes(doctypes: list[str], dry_run: bool) -> None:
 	for doctype in set(doctypes):
 		print(f"* dropping Table for '{doctype}'...")
 		if not dry_run:
@@ -361,10 +469,10 @@ def _delete_doctypes(doctypes: List[str], dry_run: bool) -> None:
 
 
 def post_install(rebuild_website=False):
-	from frappe.website import render
+	from frappe.website.utils import clear_website_cache
 
 	if rebuild_website:
-		render.clear_cache()
+		clear_website_cache()
 
 	init_singles()
 	frappe.db.commit()
@@ -372,21 +480,29 @@ def post_install(rebuild_website=False):
 
 
 def set_all_patches_as_completed(app):
-	patch_path = os.path.join(frappe.get_pymodule_path(app), "patches.txt")
-	if os.path.exists(patch_path):
-		for patch in frappe.get_file_items(patch_path):
-			frappe.get_doc({"doctype": "Patch Log", "patch": patch}).insert(ignore_permissions=True)
-		frappe.db.commit()
+	from frappe.modules.patch_handler import get_patches_from_app
+
+	patches = get_patches_from_app(app)
+	for patch in patches:
+		frappe.get_doc({"doctype": "Patch Log", "patch": patch}).insert(ignore_permissions=True)
+	frappe.db.commit()
 
 
 def init_singles():
-	singles = [single["name"] for single in frappe.get_all("DocType", filters={"issingle": True})]
+	singles = frappe.get_all("DocType", filters={"issingle": True}, pluck="name")
 	for single in singles:
-		if not frappe.db.get_singles_dict(single):
+		if frappe.db.get_singles_dict(single):
+			continue
+
+		try:
 			doc = frappe.new_doc(single)
 			doc.flags.ignore_mandatory = True
 			doc.flags.ignore_validate = True
 			doc.save()
+		except (ImportError, frappe.DoesNotExistError):
+			# The doctype exists, but controller is deleted,
+			# no need to attempt to init such single, ref: #16917
+			continue
 
 
 def make_conf(
@@ -429,7 +545,7 @@ def update_site_config(key, value, validate=True, site_config_path=None):
 	if not site_config_path:
 		site_config_path = get_site_config_path()
 
-	with open(site_config_path, "r") as f:
+	with open(site_config_path) as f:
 		site_config = json.loads(f.read())
 
 	# In case of non-int value
@@ -487,13 +603,13 @@ def make_site_dirs():
 		os.makedirs(path, exist_ok=True)
 
 
-def add_module_defs(app):
+def add_module_defs(app, ignore_if_duplicate=False):
 	modules = frappe.get_module_list(app)
 	for module in modules:
 		d = frappe.new_doc("Module Def")
 		d.app_name = app
 		d.module_name = module
-		d.save(ignore_permissions=True)
+		d.insert(ignore_permissions=True, ignore_if_duplicate=ignore_if_duplicate)
 
 
 def remove_missing_apps():
@@ -531,22 +647,71 @@ def extract_sql_from_archive(sql_file_path):
 	else:
 		decompressed_file_name = sql_file_path
 
+	# convert archive sql to latest compatible
+	convert_archive_content(decompressed_file_name)
+
 	return decompressed_file_name
+
+
+def convert_archive_content(sql_file_path):
+	if frappe.conf.db_type == "mariadb":
+		# ever since mariaDB 10.6, row_format COMPRESSED has been deprecated and removed
+		# this step is added to ease restoring sites depending on older mariaDB servers
+		# This change was reverted by mariadb in 10.6.6
+		# Ref: https://mariadb.com/kb/en/innodb-compressed-row-format/#read-only
+		from pathlib import Path
+
+		from frappe.utils import random_string
+
+		version = _guess_mariadb_version()
+		if not version or (version <= (10, 6, 0) or version >= (10, 6, 6)):
+			return
+
+		click.secho(
+			"MariaDB version being used does not support ROW_FORMAT=COMPRESSED, "
+			"converting into DYNAMIC format.",
+			fg="yellow",
+		)
+
+		old_sql_file_path = Path(f"{sql_file_path}_{random_string(10)}")
+		sql_file_path = Path(sql_file_path)
+
+		os.rename(sql_file_path, old_sql_file_path)
+		sql_file_path.touch()
+
+		with open(old_sql_file_path) as r, open(sql_file_path, "a") as w:
+			for line in r:
+				w.write(line.replace("ROW_FORMAT=COMPRESSED", "ROW_FORMAT=DYNAMIC"))
+
+		old_sql_file_path.unlink()
 
 
 def extract_sql_gzip(sql_gz_path):
 	import subprocess
 
 	try:
-		# dvf - decompress, verbose, force
 		original_file = sql_gz_path
 		decompressed_file = original_file.rstrip(".gz")
-		cmd = "gzip -dvf < {0} > {1}".format(original_file, decompressed_file)
+		cmd = f"gzip --decompress --force < {original_file} > {decompressed_file}"
 		subprocess.check_call(cmd, shell=True)
 	except Exception:
 		raise
 
 	return decompressed_file
+
+
+def _guess_mariadb_version() -> tuple[int] | None:
+	# Using command-line because we *might* not have a connection yet and this command is required
+	# in non-interactive mode.
+	# Use db.sql("select version()") instead if connection is available.
+	with suppress(Exception):
+		mysql = which("mysql")
+		version_output = subprocess.getoutput(f"{mysql} --version")
+		version_regex = r"(?P<version>\d+\.\d+\.\d+)-MariaDB"
+
+		version = re.search(version_regex, version_output).group("version")
+
+		return tuple(int(v) for v in version.split("."))
 
 
 def extract_files(site_name, file_path):
@@ -629,7 +794,7 @@ def is_downgrade(sql_file_path, verbose=False):
 
 def is_partial(sql_file_path):
 	with open(sql_file_path) as f:
-		header = " ".join([f.readline() for _ in range(5)])
+		header = " ".join(f.readline() for _ in range(5))
 		if "Partial Backup" in header:
 			return True
 	return False
@@ -643,11 +808,9 @@ def partial_restore(sql_file_path, verbose=False):
 	elif frappe.conf.db_type == "postgres":
 		import warnings
 
-		from click import style
-
 		from frappe.database.postgres.setup_db import import_db_from_sql
 
-		warn = style(
+		warn = click.style(
 			"Delete the tables you want to restore manually before attempting"
 			" partial restore operation for PostreSQL databases",
 			fg="yellow",
@@ -679,7 +842,7 @@ def validate_database_sql(path, _raise=True):
 
 	# dont bother checking if empty file
 	if not empty_file:
-		with open(path, "r") as f:
+		with open(path) as f:
 			for line in f:
 				if "tabDefaultValue" in line:
 					missing_table = False
@@ -689,8 +852,6 @@ def validate_database_sql(path, _raise=True):
 			error_message = "Table `tabDefaultValue` not found in file."
 
 	if error_message:
-		import click
-
 		click.secho(error_message, fg="red")
 
 	if _raise and (missing_table or empty_file):

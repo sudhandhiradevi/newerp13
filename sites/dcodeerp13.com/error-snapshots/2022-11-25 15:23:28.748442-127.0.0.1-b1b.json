@@ -1,0 +1,135 @@
+{
+ "etype": "SessionStopped",
+ "evalue": "SessionStopped('Session Stopped')",
+ "exception": {
+  "args": [
+   40,
+   39,
+   83,
+   101,
+   115,
+   115,
+   105,
+   111,
+   110,
+   32,
+   83,
+   116,
+   111,
+   112,
+   112,
+   101,
+   100,
+   39,
+   44,
+   41
+  ],
+  "http_status_code": [
+   53,
+   48,
+   51
+  ],
+  "with_traceback": [
+   60,
+   98,
+   117,
+   105,
+   108,
+   116,
+   45,
+   105,
+   110,
+   32,
+   109,
+   101,
+   116,
+   104,
+   111,
+   100,
+   32,
+   119,
+   105,
+   116,
+   104,
+   95,
+   116,
+   114,
+   97,
+   99,
+   101,
+   98,
+   97,
+   99,
+   107,
+   32,
+   111,
+   102,
+   32,
+   83,
+   101,
+   115,
+   115,
+   105,
+   111,
+   110,
+   83,
+   116,
+   111,
+   112,
+   112,
+   101,
+   100,
+   32,
+   111,
+   98,
+   106,
+   101,
+   99,
+   116,
+   62
+  ]
+ },
+ "frames": [
+  {
+   "call": "(request=<Request 'http://0.0.0.0:8004/api/method/frappe....39fc516f40ec59f9af9482e719e1d4a3669004ebb' [GET]>)",
+   "dump": {
+    "global init_request": "<function init_request>",
+    "request": "<Request 'http://0.0.0.0:8004/api/method/frappe....39fc516f40ec59f9af9482e719e1d4a3669004ebb' [GET]>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py",
+   "func": "application",
+   "lines": {
+    "53": "\t\trollback = True",
+    "54": "",
+    "55": "\t\tinit_request(request)",
+    "56": "",
+    "57": "\t\tfrappe.recorder.record()"
+   },
+   "lnum": 55
+  },
+  {
+   "call": "(request=<Request 'http://0.0.0.0:8004/api/method/frappe....39fc516f40ec59f9af9482e719e1d4a3669004ebb' [GET]>)",
+   "dump": {
+    "frappe. SessionStopped": "<class 'frappe.exceptions.SessionStopped'>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py",
+   "func": "init_request",
+   "lines": {
+    "121": "\t\t\tsetup_read_only_mode()",
+    "122": "\t\telse:",
+    "123": "\t\t\traise frappe.SessionStopped(\"Session Stopped\")",
+    "124": "\telse:",
+    "125": "\t\tfrappe.connect(set_admin_as_user=False)"
+   },
+   "lnum": 123
+  }
+ ],
+ "locals": {
+  "request": "<Request 'http://0.0.0.0:8004/api/method/frappe....39fc516f40ec59f9af9482e719e1d4a3669004ebb' [GET]>",
+  "site": "dcodeerp13.com"
+ },
+ "pyver": "Python 3.10.6: /home/eorchids/frappe-bench13/env/bin/python (prefix: /home/eorchids/frappe-bench13/env)",
+ "timestamp": "2022-11-25 15:23:28.748535",
+ "traceback": "Traceback (most recent call last):\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py\", line 55, in application\n    init_request(request)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py\", line 123, in init_request\n    raise frappe.SessionStopped(\"Session Stopped\")\nfrappe.exceptions.SessionStopped: Session Stopped\n"
+}

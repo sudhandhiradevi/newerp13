@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 import frappe.cache_manager
@@ -59,16 +56,16 @@ class EnergyPointRule(Document):
 						self.apply_only_once,
 					)
 			except Exception as e:
-				frappe.log_error(frappe.get_traceback(), "apply_energy_point")
+				self.log_error("Energy points failed")
 
 	def rule_condition_satisfied(self, doc):
 		if self.for_doc_event == "New":
 			# indicates that this was a new doc
-			return doc.get_doc_before_save() == None
+			return doc.get_doc_before_save() is None
 		if self.for_doc_event == "Submit":
-			return doc.docstatus == 1
+			return doc.docstatus.is_submitted()
 		if self.for_doc_event == "Cancel":
-			return doc.docstatus == 2
+			return doc.docstatus.is_cancelled()
 		if self.for_doc_event == "Value Change":
 			field_to_check = self.field_to_check
 			if not field_to_check:
@@ -107,7 +104,7 @@ def process_energy_points(doc, state):
 	old_doc = doc.get_doc_before_save()
 
 	# check if doc has been cancelled
-	if old_doc and old_doc.docstatus == 1 and doc.docstatus == 2:
+	if old_doc and old_doc.docstatus.is_submitted() and doc.docstatus.is_cancelled():
 		return revert_points_for_cancelled_doc(doc)
 
 	for d in frappe.cache_manager.get_doctype_map(

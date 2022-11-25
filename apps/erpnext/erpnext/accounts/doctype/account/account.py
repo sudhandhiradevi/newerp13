@@ -37,7 +37,7 @@ class Account(NestedSet):
 	def autoname(self):
 		from erpnext.accounts.utils import get_autoname_with_number
 
-		self.name = get_autoname_with_number(self.account_number, self.account_name, None, self.company)
+		self.name = get_autoname_with_number(self.account_number, self.account_name, self.company)
 
 	def validate(self):
 		from erpnext.accounts.utils import validate_field_number
@@ -322,9 +322,9 @@ def get_parent_account(doctype, txt, searchfield, start, page_len, filters):
 	return frappe.db.sql(
 		"""select name from tabAccount
 		where is_group = 1 and docstatus != 2 and company = %s
-		and %s like %s order by name limit %s, %s"""
+		and %s like %s order by name limit %s offset %s"""
 		% ("%s", searchfield, "%s", "%s", "%s"),
-		(filters["company"], "%%%s%%" % txt, start, page_len),
+		(filters["company"], "%%%s%%" % txt, page_len, start),
 		as_list=1,
 	)
 

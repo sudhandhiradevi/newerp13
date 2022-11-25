@@ -1,0 +1,18 @@
+2022-11-25 15:23:28,111 ERROR frappe New Exception collected with id: 2022-11-25 15:23:28.102551-127.0.0.1-64e
+Site: dcodeerp13.com
+Form Dict: {}
+2022-11-25 15:23:28,451 ERROR frappe New Exception collected with id: 2022-11-25 15:23:28.450145-127.0.0.1-1ad
+Site: dcodeerp13.com
+Form Dict: {}
+2022-11-25 15:23:28,503 ERROR frappe New Exception collected with id: 2022-11-25 15:23:28.501440-127.0.0.1-145
+Site: dcodeerp13.com
+Form Dict: {}
+2022-11-25 15:23:28,751 ERROR frappe New Exception collected with id: 2022-11-25 15:23:28.748442-127.0.0.1-b1b
+Site: dcodeerp13.com
+Form Dict: {}
+2022-11-25 15:29:01,933 ERROR frappe New Exception collected with id: 2022-11-25 15:29:01.783638-127.0.0.1-903
+Site: dcodeerp13.com
+Form Dict: {'cmd': 'web_logout'}
+2022-11-25 15:29:13,641 ERROR frappe New Exception collected with id: 2022-11-25 15:29:13.632877-127.0.0.1-8c4
+Site: dcodeerp13.com
+Form Dict: {'cmd': 'web_logout'}

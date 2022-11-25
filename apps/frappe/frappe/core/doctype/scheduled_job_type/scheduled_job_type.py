@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
+# Copyright (c) 2021, Frappe Technologies and contributors
+# License: MIT. See LICENSE
 
 import json
 from datetime import datetime
-from typing import Dict, List
 
+import click
 from croniter import croniter
 
 import frappe
@@ -50,6 +49,10 @@ class ScheduledJobType(Document):
 	def is_job_in_queue(self):
 		queued_jobs = get_jobs(site=frappe.local.site, key="job_type")[frappe.local.site]
 		return self.method in queued_jobs
+
+	@property
+	def next_execution(self):
+		return self.get_next_execution()
 
 	def get_next_execution(self):
 		CRON_MAP = {
@@ -116,7 +119,7 @@ class ScheduledJobType(Document):
 		return "long" if ("Long" in self.frequency) else "default"
 
 	def on_trash(self):
-		frappe.db.sql("delete from `tabScheduled Job Log` where scheduled_job_type=%s", self.name)
+		frappe.db.delete("Scheduled Job Log", {"scheduled_job_type": self.name})
 
 
 @frappe.whitelist()
@@ -135,14 +138,14 @@ def run_scheduled_job(job_type: str):
 		print(frappe.get_traceback())
 
 
-def sync_jobs(hooks: Dict = None):
+def sync_jobs(hooks: dict = None):
 	frappe.reload_doc("core", "doctype", "scheduled_job_type")
 	scheduler_events = hooks or frappe.get_hooks("scheduler_events")
 	all_events = insert_events(scheduler_events)
 	clear_events(all_events)
 
 
-def insert_events(scheduler_events: Dict) -> List:
+def insert_events(scheduler_events: dict) -> list:
 	cron_jobs, event_jobs = [], []
 	for event_type in scheduler_events:
 		events = scheduler_events.get(event_type)
@@ -154,7 +157,7 @@ def insert_events(scheduler_events: Dict) -> List:
 	return cron_jobs + event_jobs
 
 
-def insert_cron_jobs(events: Dict) -> List:
+def insert_cron_jobs(events: dict) -> list:
 	cron_jobs = []
 	for cron_format in events:
 		for event in events.get(cron_format):
@@ -163,7 +166,7 @@ def insert_cron_jobs(events: Dict) -> List:
 	return cron_jobs
 
 
-def insert_event_jobs(events: List, event_type: str) -> List:
+def insert_event_jobs(events: list, event_type: str) -> list:
 	event_jobs = []
 	for event in events:
 		event_jobs.append(event)
@@ -174,6 +177,12 @@ def insert_event_jobs(events: List, event_type: str) -> List:
 
 def insert_single_event(frequency: str, event: str, cron_format: str = None):
 	cron_expr = {"cron_format": cron_format} if cron_format else {}
+
+	try:
+		frappe.get_attr(event)
+	except Exception as e:
+		click.secho(f"{event} is not a valid method: {e}", fg="yellow")
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "Scheduled Job Type",
@@ -186,14 +195,17 @@ def insert_single_event(frequency: str, event: str, cron_format: str = None):
 	if not frappe.db.exists(
 		"Scheduled Job Type", {"method": event, "frequency": frequency, **cron_expr}
 	):
+		savepoint = "scheduled_job_type_creation"
 		try:
+			frappe.db.savepoint(savepoint)
 			doc.insert()
 		except frappe.DuplicateEntryError:
+			frappe.db.rollback(save_point=savepoint)
 			doc.delete()
 			doc.insert()
 
 
-def clear_events(all_events: List):
+def clear_events(all_events: list):
 	for event in frappe.get_all("Scheduled Job Type", fields=["name", "method", "server_script"]):
 		is_server_script = event.server_script
 		is_defined_in_hooks = event.method in all_events

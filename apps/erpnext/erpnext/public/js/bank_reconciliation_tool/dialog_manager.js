@@ -16,7 +16,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				doctype: "Bank Transaction",
 				filters: { name: this.bank_transaction_name },
 				fieldname: [
-					"date",
+					"date as reference_date",
 					"deposit",
 					"withdrawal",
 					"currency",
@@ -87,33 +87,33 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 	get_dt_columns() {
 		this.columns = [
 			{
-				name: "Document Type",
+				name: __("Document Type"),
 				editable: false,
 				width: 125,
 			},
 			{
-				name: "Document Name",
+				name: __("Document Name"),
 				editable: false,
 				width: 150,
 			},
 			{
-				name: "Reference Date",
+				name: __("Reference Date"),
 				editable: false,
 				width: 120,
 			},
 			{
-				name: "Amount",
+				name: __("Amount"),
 				editable: false,
 				width: 100,
 			},
 			{
-				name: "Party",
+				name: __("Party"),
 				editable: false,
 				width: 120,
 			},
 
 			{
-				name: "Reference Number",
+				name: __("Reference Number"),
 				editable: false,
 				width: 140,
 			},
@@ -169,60 +169,44 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				label: __("Filters"),
 				depends_on: "eval:doc.action=='Match Against Voucher'",
 			},
-			{
-				fieldtype: "Check",
-				label: "Payment Entry",
-				fieldname: "payment_entry",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldtype: "Check",
-				label: "Journal Entry",
-				fieldname: "journal_entry",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldtype: "Check",
-				label: "Loan Repayment",
-				fieldname: "loan_repayment",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldname: "column_break_5",
-				fieldtype: "Column Break",
-			},
-			{
-				fieldtype: "Check",
-				label: "Sales Invoice",
-				fieldname: "sales_invoice",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldtype: "Check",
-				label: "Purchase Invoice",
-				fieldname: "purchase_invoice",
-				onchange: () => this.update_options(),
-			},
+		];
+
+		frappe.call({
+			method: "erpnext.accounts.doctype.bank_transaction.bank_transaction.get_doctypes_for_bank_reconciliation",
+			callback: (r) => {
+				$.each(r.message, (_i, entry) => {
+					if (_i % 3 == 0) {
+						fields.push({
+							fieldtype: "Column Break",
+						});
+					}
+					fields.push({
+						fieldtype: "Check",
+						label: entry,
+						fieldname: frappe.scrub(entry),
+						onchange: () => this.update_options(),
+					});
+				});
+
+				fields.push(...this.get_voucher_fields());
+
+				me.dialog = new frappe.ui.Dialog({
+					title: __("Reconcile the Bank Transaction"),
+					fields: fields,
+					size: "large",
+					primary_action: (values) =>
+						this.reconciliation_dialog_primary_action(values),
+				});
+			}
+		});
+	}
+
+	get_voucher_fields() {
+		return [
 			{
 				fieldtype: "Check",
 				label: "Show Only Exact Amount",
 				fieldname: "exact_match",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldname: "column_break_5",
-				fieldtype: "Column Break",
-			},
-			{
-				fieldtype: "Check",
-				label: "Expense Claim",
-				fieldname: "expense_claim",
-				onchange: () => this.update_options(),
-			},
-			{
-				fieldtype: "Check",
-				label: "Loan Disbursement",
-				fieldname: "loan_disbursement",
 				onchange: () => this.update_options(),
 			},
 			{
@@ -238,7 +222,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 			{
 				fieldtype: "HTML",
 				fieldname: "no_matching_vouchers",
-				options: "<div class=\"text-muted text-center\">No Matching Vouchers Found</div>"
+				options: __("<div class=\"text-muted text-center\">{0}</div>", [__("No Matching Vouchers Found")])
 			},
 			{
 				fieldtype: "Section Break",
@@ -404,14 +388,6 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				read_only: 1,
 			},
 		];
-
-		me.dialog = new frappe.ui.Dialog({
-			title: __("Reconcile the Bank Transaction"),
-			fields: fields,
-			size: "large",
-			primary_action: (values) =>
-				this.reconciliation_dialog_primary_action(values),
-		});
 	}
 
 	get_selected_attributes() {
@@ -468,10 +444,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				vouchers: vouchers,
 			},
 			callback: (response) => {
-				const alert_string =
-					"Bank Transaction " +
-					this.bank_transaction.name +
-					" Matched";
+				const alert_string = __("Bank Transaction {0} Matched", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
 				this.update_dt_cards(response.message);
 				this.dialog.hide();
@@ -495,10 +468,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				cost_center: values.cost_center,
 			},
 			callback: (response) => {
-				const alert_string =
-					"Bank Transaction " +
-					this.bank_transaction.name +
-					" added as Payment Entry";
+				const alert_string = __("Bank Transaction {0} added as Payment Entry", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
 				this.update_dt_cards(response.message);
 				this.dialog.hide();
@@ -522,10 +492,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				second_account: values.second_account,
 			},
 			callback: (response) => {
-				const alert_string =
-					"Bank Transaction " +
-					this.bank_transaction.name +
-					" added as Journal Entry";
+				const alert_string = __("Bank Transaction {0} added as Journal Entry", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
 				this.update_dt_cards(response.message);
 				this.dialog.hide();
@@ -544,10 +511,7 @@ erpnext.accounts.bank_reconciliation.DialogManager = class DialogManager {
 				party: values.party,
 			},
 			callback: (response) => {
-				const alert_string =
-					"Bank Transaction " +
-					this.bank_transaction.name +
-					" updated";
+				const alert_string = __("Bank Transaction {0} updated", [this.bank_transaction.name]);
 				frappe.show_alert(alert_string);
 				this.update_dt_cards(response.message);
 				this.dialog.hide();

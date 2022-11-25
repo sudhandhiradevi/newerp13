@@ -1,10 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
-
-from six import iteritems, text_type
-
+# License: MIT. See LICENSE
 """
 bootstrap client session
 """
@@ -13,16 +8,19 @@ import frappe
 import frappe.defaults
 import frappe.desk.desk_page
 from frappe.core.doctype.navbar_settings.navbar_settings import get_app_logo, get_navbar_settings
+from frappe.desk.doctype.route_history.route_history import frequently_visited_links
 from frappe.desk.form.load import get_meta_bundle
 from frappe.email.inbox import get_email_accounts
 from frappe.model.base_document import get_controller
+from frappe.query_builder import DocType
+from frappe.query_builder.functions import Count
+from frappe.query_builder.terms import ParameterizedValueWrapper, SubQuery
 from frappe.social.doctype.energy_point_log.energy_point_log import get_energy_points
 from frappe.social.doctype.energy_point_settings.energy_point_settings import (
 	is_energy_point_enabled,
 )
-from frappe.social.doctype.post.post import frequently_visited_links
 from frappe.translate import get_lang_dict, get_messages_for_boot, get_translated_doctypes
-from frappe.utils import cstr
+from frappe.utils import add_user_info, cstr, get_time_zone
 from frappe.utils.change_log import get_versions
 from frappe.website.doctype.web_page_view.web_page_view import is_tracking_enabled
 
@@ -69,6 +67,7 @@ def get_bootinfo():
 	bootinfo.home_folder = frappe.db.get_value("File", {"is_home_folder": 1})
 	bootinfo.navbar_settings = get_navbar_settings()
 	bootinfo.notification_settings = get_notification_settings()
+	set_time_zone(bootinfo)
 
 	# ipinfo
 	if frappe.session.data.get("ipinfo"):
@@ -76,12 +75,14 @@ def get_bootinfo():
 
 	# add docs
 	bootinfo.docs = doclist
+	load_country_doc(bootinfo)
+	load_currency_docs(bootinfo)
 
 	for method in hooks.boot_session or []:
 		frappe.get_attr(method)(bootinfo)
 
 	if bootinfo.lang:
-		bootinfo.lang = text_type(bootinfo.lang)
+		bootinfo.lang = str(bootinfo.lang)
 	bootinfo.versions = {k: v["version"] for k, v in get_versions().items()}
 
 	bootinfo.error_report_email = frappe.conf.error_report_email
@@ -98,7 +99,9 @@ def get_bootinfo():
 	bootinfo.additional_filters_config = get_additional_filters_from_hooks()
 	bootinfo.desk_settings = get_desk_settings()
 	bootinfo.app_logo_url = get_app_logo()
+	bootinfo.link_title_doctypes = get_link_title_doctypes()
 	bootinfo.translated_doctypes = get_translated_doctypes()
+	bootinfo.subscription_expiry = add_subscription_expiry()
 
 	return bootinfo
 
@@ -123,9 +126,9 @@ def load_conf_settings(bootinfo):
 
 
 def load_desktop_data(bootinfo):
-	from frappe.desk.desktop import get_desk_sidebar_items
+	from frappe.desk.desktop import get_workspace_sidebar_items
 
-	bootinfo.allowed_workspaces = get_desk_sidebar_items()
+	bootinfo.allowed_workspaces = get_workspace_sidebar_items().get("pages")
 	bootinfo.module_page_map = get_controller("Workspace").get_module_page_map()
 	bootinfo.dashboards = frappe.get_all("Dashboard")
 
@@ -138,7 +141,7 @@ def get_allowed_reports(cache=False):
 	return get_user_pages_or_reports("Report", cache=cache)
 
 
-def get_allowed_report_names(cache=False):
+def get_allowed_report_names(cache=False) -> set[str]:
 	return {cstr(report) for report in get_allowed_reports(cache).keys() if report}
 
 
@@ -152,56 +155,60 @@ def get_user_pages_or_reports(parent, cache=False):
 
 	roles = frappe.get_roles()
 	has_role = {}
-	column = get_column(parent)
+
+	page = DocType("Page")
+	report = DocType("Report")
+
+	if parent == "Report":
+		columns = (report.name.as_("title"), report.ref_doctype, report.report_type)
+	else:
+		columns = (page.title.as_("title"),)
+
+	customRole = DocType("Custom Role")
+	hasRole = DocType("Has Role")
+	parentTable = DocType(parent)
 
 	# get pages or reports set on custom role
-	pages_with_custom_roles = frappe.db.sql(
-		"""
-		select
-			`tabCustom Role`.{field} as name,
-			`tabCustom Role`.modified,
-			`tabCustom Role`.ref_doctype,
-			{column}
-		from `tabCustom Role`, `tabHas Role`, `tab{parent}`
-		where
-			`tabHas Role`.parent = `tabCustom Role`.name
-			and `tab{parent}`.name = `tabCustom Role`.{field}
-			and `tabCustom Role`.{field} is not null
-			and `tabHas Role`.role in ({roles})
-	""".format(
-			field=parent.lower(), parent=parent, column=column, roles=", ".join(["%s"] * len(roles))
-		),
-		roles,
-		as_dict=1,
-	)
+	pages_with_custom_roles = (
+		frappe.qb.from_(customRole)
+		.from_(hasRole)
+		.from_(parentTable)
+		.select(
+			customRole[parent.lower()].as_("name"), customRole.modified, customRole.ref_doctype, *columns
+		)
+		.where(
+			(hasRole.parent == customRole.name)
+			& (parentTable.name == customRole[parent.lower()])
+			& (customRole[parent.lower()].isnotnull())
+			& (hasRole.role.isin(roles))
+		)
+	).run(as_dict=True)
 
 	for p in pages_with_custom_roles:
 		has_role[p.name] = {"modified": p.modified, "title": p.title, "ref_doctype": p.ref_doctype}
 
-	pages_with_standard_roles = frappe.db.sql(
-		"""
-		select distinct
-			`tab{parent}`.name as name,
-			`tab{parent}`.modified,
-			{column}
-		from `tabHas Role`, `tab{parent}`
-		where
-			`tabHas Role`.role in ({roles})
-			and `tabHas Role`.parent = `tab{parent}`.name
-			and `tab{parent}`.`name` not in (
-				select `tabCustom Role`.{field} from `tabCustom Role`
-				where `tabCustom Role`.{field} is not null)
-			{condition}
-		""".format(
-			parent=parent,
-			column=column,
-			roles=", ".join(["%s"] * len(roles)),
-			field=parent.lower(),
-			condition="and `tabReport`.disabled=0" if parent == "Report" else "",
-		),
-		roles,
-		as_dict=True,
+	subq = (
+		frappe.qb.from_(customRole)
+		.select(customRole[parent.lower()])
+		.where(customRole[parent.lower()].isnotnull())
 	)
+
+	pages_with_standard_roles = (
+		frappe.qb.from_(hasRole)
+		.from_(parentTable)
+		.select(parentTable.name.as_("name"), parentTable.modified, *columns)
+		.where(
+			(hasRole.role.isin(roles))
+			& (hasRole.parent == parentTable.name)
+			& (parentTable.name.notin(subq))
+		)
+		.distinct()
+	)
+
+	if parent == "Report":
+		pages_with_standard_roles = pages_with_standard_roles.where(report.disabled == 0)
+
+	pages_with_standard_roles = pages_with_standard_roles.run(as_dict=True)
 
 	for p in pages_with_standard_roles:
 		if p.name not in has_role:
@@ -209,21 +216,18 @@ def get_user_pages_or_reports(parent, cache=False):
 			if parent == "Report":
 				has_role[p.name].update({"ref_doctype": p.ref_doctype})
 
+	no_of_roles = SubQuery(
+		frappe.qb.from_(hasRole).select(Count("*")).where(hasRole.parent == parentTable.name)
+	)
+
 	# pages with no role are allowed
 	if parent == "Page":
-		pages_with_no_roles = frappe.db.sql(
-			"""
-			select
-				`tab{parent}`.name, `tab{parent}`.modified, {column}
-			from `tab{parent}`
-			where
-				(select count(*) from `tabHas Role`
-				where `tabHas Role`.parent=`tab{parent}`.`name`) = 0
-		""".format(
-				parent=parent, column=column
-			),
-			as_dict=1,
-		)
+
+		pages_with_no_roles = (
+			frappe.qb.from_(parentTable)
+			.select(parentTable.name, parentTable.modified, *columns)
+			.where(no_of_roles == 0)
+		).run(as_dict=True)
 
 		for p in pages_with_no_roles:
 			if p.name not in has_role:
@@ -244,46 +248,20 @@ def get_user_pages_or_reports(parent, cache=False):
 	return has_role
 
 
-def get_column(doctype):
-	column = "`tabPage`.title as title"
-	if doctype == "Report":
-		column = "`tabReport`.`name` as title, `tabReport`.ref_doctype, `tabReport`.report_type"
-
-	return column
-
-
 def load_translations(bootinfo):
 	bootinfo["lang"] = frappe.lang
 	bootinfo["__messages"] = get_messages_for_boot()
 
 
 def get_user_info():
-	user_info = frappe.db.get_all(
-		"User",
-		fields=[
-			"`name`",
-			"full_name as fullname",
-			"user_image as image",
-			"gender",
-			"email",
-			"username",
-			"bio",
-			"location",
-			"interest",
-			"banner_image",
-			"allowed_in_mentions",
-			"user_type",
-		],
-		filters=dict(enabled=1),
-	)
+	# get info for current user
+	user_info = frappe._dict()
+	add_user_info(frappe.session.user, user_info)
 
-	user_info_map = {d.name: d for d in user_info}
+	if frappe.session.user == "Administrator" and user_info.Administrator.email:
+		user_info[user_info.Administrator.email] = user_info.Administrator
 
-	admin_data = user_info_map.get("Administrator")
-	if admin_data:
-		user_info_map[admin_data.email] = admin_data
-
-	return user_info_map
+	return user_info
 
 
 def get_user(bootinfo):
@@ -334,14 +312,22 @@ def load_print_css(bootinfo, print_settings):
 
 
 def get_unseen_notes():
-	return frappe.db.sql(
-		"""select `name`, title, content, notify_on_every_login from `tabNote` where notify_on_login=1
-		and expire_notification_on > %s and %s not in
-			(select user from `tabNote Seen By` nsb
-				where nsb.parent=`tabNote`.name)""",
-		(frappe.utils.now(), frappe.session.user),
-		as_dict=True,
-	)
+	note = DocType("Note")
+	nsb = DocType("Note Seen By").as_("nsb")
+
+	return (
+		frappe.qb.from_(note)
+		.select(note.name, note.title, note.content, note.notify_on_every_login)
+		.where(
+			(note.notify_on_login == 1)
+			& (note.expire_notification_on > frappe.utils.now())
+			& (
+				ParameterizedValueWrapper(frappe.session.user).notin(
+					SubQuery(frappe.qb.from_(nsb).select(nsb.user).where(nsb.parent == note.name))
+				)
+			)
+		)
+	).run(as_dict=1)
 
 
 def get_success_action():
@@ -351,7 +337,7 @@ def get_success_action():
 def get_link_preview_doctypes():
 	from frappe.utils import cint
 
-	link_preview_doctypes = [d.name for d in frappe.db.get_all("DocType", {"show_preview_popup": 1})]
+	link_preview_doctypes = [d.name for d in frappe.get_all("DocType", {"show_preview_popup": 1})]
 	customizations = frappe.get_all(
 		"Property Setter", fields=["doc_type", "value"], filters={"property": "show_preview_popup"}
 	)
@@ -394,3 +380,59 @@ def get_desk_settings():
 
 def get_notification_settings():
 	return frappe.get_cached_doc("Notification Settings", frappe.session.user)
+
+
+def get_link_title_doctypes():
+	dts = frappe.get_all("DocType", {"show_title_field_in_link": 1})
+	custom_dts = frappe.get_all(
+		"Property Setter",
+		{"property": "show_title_field_in_link", "value": "1"},
+		["doc_type as name"],
+	)
+	return [d.name for d in dts + custom_dts if d]
+
+
+def set_time_zone(bootinfo):
+	bootinfo.time_zone = {
+		"system": get_time_zone(),
+		"user": bootinfo.get("user_info", {}).get(frappe.session.user, {}).get("time_zone", None)
+		or get_time_zone(),
+	}
+
+
+def load_country_doc(bootinfo):
+	country = frappe.db.get_default("country")
+	if not country:
+		return
+	try:
+		bootinfo.docs.append(frappe.get_cached_doc("Country", country))
+	except Exception:
+		pass
+
+
+def load_currency_docs(bootinfo):
+	currency = frappe.qb.DocType("Currency")
+
+	currency_docs = (
+		frappe.qb.from_(currency)
+		.select(
+			currency.name,
+			currency.fraction,
+			currency.fraction_units,
+			currency.number_format,
+			currency.smallest_currency_fraction_value,
+			currency.symbol,
+			currency.symbol_on_right,
+		)
+		.where(currency.enabled == 1)
+		.run(as_dict=1, update={"doctype": ":Currency"})
+	)
+
+	bootinfo.docs += currency_docs
+
+
+def add_subscription_expiry():
+	try:
+		return frappe.conf.subscription["expiry"]
+	except Exception:
+		return ""

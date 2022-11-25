@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -17,7 +15,7 @@ def get_all_nodes(doctype, label, parent, tree_method, **filters):
 
 	tree_method = frappe.get_attr(tree_method)
 
-	if not tree_method in frappe.whitelisted:
+	if tree_method not in frappe.whitelisted:
 		frappe.throw(_("Not Permitted"), frappe.PermissionError)
 
 	data = tree_method(doctype, parent, **filters)
@@ -45,7 +43,7 @@ def get_children(doctype, parent="", **filters):
 
 def _get_children(doctype, parent="", ignore_permissions=False):
 	parent_field = "parent_" + doctype.lower().replace(" ", "_")
-	filters = [['ifnull(`{0}`,"")'.format(parent_field), "=", parent], ["docstatus", "<", "2"]]
+	filters = [[f"ifnull(`{parent_field}`,'')", "=", parent], ["docstatus", "<", 2]]
 
 	meta = frappe.get_meta(doctype)
 
@@ -53,7 +51,7 @@ def _get_children(doctype, parent="", ignore_permissions=False):
 		doctype,
 		fields=[
 			"name as value",
-			"{0} as title".format(meta.get("title_field") or "name"),
+			"{} as title".format(meta.get("title_field") or "name"),
 			"is_group as expandable",
 		],
 		filters=filters,

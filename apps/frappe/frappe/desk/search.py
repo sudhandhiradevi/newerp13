@@ -1,19 +1,13 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
-# Search
-from __future__ import unicode_literals
-
+import functools
 import json
 import re
-
-import wrapt
-from six import string_types
 
 import frappe
 from frappe import _, is_whitelisted
 from frappe.permissions import has_permission
-from frappe.translate import get_translated_doctypes
 from frappe.utils import cint, cstr, unique
 
 
@@ -40,7 +34,7 @@ def sanitize_searchfield(searchfield):
 			_raise_exception(searchfield)
 
 		# to avoid and, or and like
-		elif any(" {0} ".format(keyword) in searchfield.split() for keyword in blacklisted_keywords):
+		elif any(f" {keyword} " in searchfield.split() for keyword in blacklisted_keywords):
 			_raise_exception(searchfield)
 
 		# to avoid select, delete, drop, update and case
@@ -75,7 +69,8 @@ def search_link(
 		reference_doctype=reference_doctype,
 		ignore_user_permissions=ignore_user_permissions,
 	)
-	frappe.response["results"] = build_for_autosuggest(frappe.response["values"])
+
+	frappe.response["results"] = build_for_autosuggest(frappe.response["values"], doctype=doctype)
 	del frappe.response["values"]
 
 
@@ -97,7 +92,7 @@ def search_widget(
 
 	start = cint(start)
 
-	if isinstance(filters, string_types):
+	if isinstance(filters, str):
 		filters = json.loads(filters)
 
 	if searchfield:
@@ -120,7 +115,10 @@ def search_widget(
 				raise e
 			else:
 				frappe.respond_as_web_page(
-					title="Invalid Method", html="Method not found", indicator_color="red", http_status_code=404
+					title="Invalid Method",
+					html="Method not found",
+					indicator_color="red",
+					http_status_code=404,
 				)
 			return
 		except Exception as e:
@@ -147,13 +145,10 @@ def search_widget(
 					else:
 						filters.append([doctype, f[0], "=", f[1]])
 
-			if filters == None:
+			if filters is None:
 				filters = []
 			or_filters = []
 
-			translated_doctypes = frappe.cache().hget(
-				"translated_doctypes", "doctypes", get_translated_doctypes
-			)
 			# build from doctype
 			if txt:
 				field_types = [
@@ -175,10 +170,10 @@ def search_widget(
 
 				for f in search_fields:
 					fmeta = meta.get_field(f.strip())
-					if (doctype not in translated_doctypes) and (
+					if not meta.translated_doctype and (
 						f == "name" or (fmeta and fmeta.fieldtype in field_types)
 					):
-						or_filters.append([doctype, f.strip(), "like", "%{0}%".format(txt)])
+						or_filters.append([doctype, f.strip(), "like", f"%{txt}%"])
 
 			if meta.get("fields", {"fieldname": "enabled", "fieldtype": "Check"}):
 				filters.append([doctype, "enabled", "=", 1])
@@ -189,31 +184,39 @@ def search_widget(
 			fields = get_std_fields_list(meta, searchfield or "name")
 			if filter_fields:
 				fields = list(set(fields + json.loads(filter_fields)))
-			formatted_fields = ["`tab%s`.`%s`" % (meta.name, f.strip()) for f in fields]
+			formatted_fields = [f"`tab{meta.name}`.`{f.strip()}`" for f in fields]
 
-			# find relevance as location of search term from the beginning of string `name`. used for sorting results.
-			formatted_fields.append(
-				"""locate({_txt}, `tab{doctype}`.`name`) as `_relevance`""".format(
-					_txt=frappe.db.escape((txt or "").replace("%", "").replace("@", "")), doctype=doctype
-				)
-			)
+			# Insert title field query after name
+			if meta.show_title_field_in_link:
+				formatted_fields.insert(1, f"`tab{meta.name}`.{meta.title_field} as `label`")
 
 			# In order_by, `idx` gets second priority, because it stores link count
 			from frappe.model.db_query import get_order_by
 
 			order_by_based_on_meta = get_order_by(doctype, meta)
 			# 2 is the index of _relevance column
-			order_by = "_relevance, {0}, `tab{1}`.idx desc".format(order_by_based_on_meta, doctype)
+			order_by = f"{order_by_based_on_meta}, `tab{doctype}`.idx desc"
 
-			ptype = "select" if frappe.only_has_select_perm(doctype) else "read"
+			if not meta.translated_doctype:
+				formatted_fields.append(
+					"""locate({_txt}, `tab{doctype}`.`name`) as `_relevance`""".format(
+						_txt=frappe.db.escape((txt or "").replace("%", "").replace("@", "")),
+						doctype=doctype,
+					)
+				)
+				order_by = f"_relevance, {order_by}"
+
 			ignore_permissions = (
 				True
 				if doctype == "DocType"
-				else (cint(ignore_user_permissions) and has_permission(doctype, ptype=ptype))
+				else (
+					cint(ignore_user_permissions)
+					and has_permission(
+						doctype,
+						ptype="select" if frappe.only_has_select_perm(doctype) else "read",
+					)
+				)
 			)
-
-			if doctype in translated_doctypes:
-				page_length = None
 
 			values = frappe.get_list(
 				doctype,
@@ -221,7 +224,7 @@ def search_widget(
 				fields=formatted_fields,
 				or_filters=or_filters,
 				limit_start=start,
-				limit_page_length=page_length,
+				limit_page_length=None if meta.translated_doctype else page_length,
 				order_by=order_by,
 				ignore_permissions=ignore_permissions,
 				reference_doctype=reference_doctype,
@@ -229,12 +232,15 @@ def search_widget(
 				strict=False,
 			)
 
-			if doctype in translated_doctypes:
+			if meta.translated_doctype:
 				# Filtering the values array so that query is included in very element
 				values = (
-					v
-					for v in values
-					if re.search(f"{re.escape(txt)}.*", _(v.name if as_dict else v[0]), re.IGNORECASE)
+					result
+					for result in values
+					if any(
+						re.search(f"{re.escape(txt)}.*", _(cstr(value)) or "", re.IGNORECASE)
+						for value in (result.values() if as_dict else result)
+					)
 				)
 
 			# Sorting the values array so that relevant results always come first
@@ -243,12 +249,14 @@ def search_widget(
 			values = sorted(values, key=lambda x: relevance_sorter(x, txt, as_dict))
 
 			# remove _relevance from results
-			if as_dict:
-				for r in values:
-					r.pop("_relevance")
-				frappe.response["values"] = values
-			else:
-				frappe.response["values"] = [r[:-1] for r in values]
+			if not meta.translated_doctype:
+				if as_dict:
+					for r in values:
+						r.pop("_relevance")
+				else:
+					values = [r[:-1] for r in values]
+
+			frappe.response["values"] = values
 
 
 def get_std_fields_list(meta, key):
@@ -268,11 +276,26 @@ def get_std_fields_list(meta, key):
 	return sflist
 
 
-def build_for_autosuggest(res):
+def build_for_autosuggest(res: list[tuple], doctype: str) -> list[dict]:
+	def to_string(parts):
+		return ", ".join(
+			unique(_(cstr(part)) if meta.translated_doctype else cstr(part) for part in parts if part)
+		)
+
 	results = []
-	for r in res:
-		out = {"value": r[0], "description": ", ".join(unique(cstr(d) for d in r if d)[1:])}
-		results.append(out)
+	meta = frappe.get_meta(doctype)
+	if meta.show_title_field_in_link:
+		for item in res:
+			item = list(item)
+			label = item[1]  # use title as label
+			item[1] = item[0]  # show name in description instead of title
+			if len(item) >= 3 and item[2] == label:
+				# remove redundant title ("label") value
+				del item[2]
+			results.append({"value": item[0], "label": label, "description": to_string(item[1:])})
+	else:
+		results.extend({"value": item[0], "description": to_string(item[1:])} for item in res)
+
 	return results
 
 
@@ -286,20 +309,23 @@ def scrub_custom_query(query, key, txt):
 
 def relevance_sorter(key, query, as_dict):
 	value = _(key.name if as_dict else key[0])
-	return (value.lower().startswith(query.lower()) is not True, value)
+	return (cstr(value).lower().startswith(query.lower()) is not True, value)
 
 
-@wrapt.decorator
-def validate_and_sanitize_search_inputs(fn, instance, args, kwargs):
-	kwargs.update(dict(zip(fn.__code__.co_varnames, args)))
-	sanitize_searchfield(kwargs["searchfield"])
-	kwargs["start"] = cint(kwargs["start"])
-	kwargs["page_len"] = cint(kwargs["page_len"])
+def validate_and_sanitize_search_inputs(fn):
+	@functools.wraps(fn)
+	def wrapper(*args, **kwargs):
+		kwargs.update(dict(zip(fn.__code__.co_varnames, args)))
+		sanitize_searchfield(kwargs["searchfield"])
+		kwargs["start"] = cint(kwargs["start"])
+		kwargs["page_len"] = cint(kwargs["page_len"])
 
-	if kwargs["doctype"] and not frappe.db.exists("DocType", kwargs["doctype"]):
-		return []
+		if kwargs["doctype"] and not frappe.db.exists("DocType", kwargs["doctype"]):
+			return []
 
-	return fn(**kwargs)
+		return fn(**kwargs)
+
+	return wrapper
 
 
 @frappe.whitelist()
@@ -338,3 +364,13 @@ def get_user_groups():
 	return frappe.get_all(
 		"User Group", fields=["name as id", "name as value"], update={"is_group": True}
 	)
+
+
+@frappe.whitelist()
+def get_link_title(doctype, docname):
+	meta = frappe.get_meta(doctype)
+
+	if meta.show_title_field_in_link:
+		return frappe.db.get_value(doctype, docname, meta.title_field)
+
+	return docname

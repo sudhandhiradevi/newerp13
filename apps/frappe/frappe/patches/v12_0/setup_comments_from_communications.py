@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import frappe
 
 
@@ -33,4 +31,4 @@ def execute():
 		frappe.db.auto_commit_on_many_writes = False
 
 	# clean up
-	frappe.db.sql("delete from `tabCommunication` where communication_type = 'Comment'")
+	frappe.db.delete("Communication", {"communication_type": "Comment"})

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import os
 
 import frappe
@@ -36,17 +34,17 @@ def setup_database(force, source_sql, verbose, no_mariadb_socket=False):
 	db_name = frappe.local.conf.db_name
 	root_conn = get_root_connection(frappe.flags.root_login, frappe.flags.root_password)
 	dbman = DbManager(root_conn)
+	dbman_kwargs = {}
+	if no_mariadb_socket:
+		dbman_kwargs["host"] = "%"
+
 	if force or (db_name not in dbman.get_database_list()):
-		dbman.delete_user(db_name)
-		if no_mariadb_socket:
-			dbman.delete_user(db_name, host="%")
+		dbman.delete_user(db_name, **dbman_kwargs)
 		dbman.drop_database(db_name)
 	else:
-		raise Exception("Database %s already exists" % (db_name,))
+		raise Exception(f"Database {db_name} already exists")
 
-	dbman.create_user(db_name, frappe.conf.db_password)
-	if no_mariadb_socket:
-		dbman.create_user(db_name, frappe.conf.db_password, host="%")
+	dbman.create_user(db_name, frappe.conf.db_password, **dbman_kwargs)
 	if verbose:
 		print("Created user %s" % db_name)
 
@@ -54,12 +52,10 @@ def setup_database(force, source_sql, verbose, no_mariadb_socket=False):
 	if verbose:
 		print("Created database %s" % db_name)
 
-	dbman.grant_all_privileges(db_name, db_name)
-	if no_mariadb_socket:
-		dbman.grant_all_privileges(db_name, db_name, host="%")
+	dbman.grant_all_privileges(db_name, db_name, **dbman_kwargs)
 	dbman.flush_privileges()
 	if verbose:
-		print("Granted privileges to user %s and database %s" % (db_name, db_name))
+		print(f"Granted privileges to user {db_name} and database {db_name}")
 
 	# close root connection
 	root_conn.close()
@@ -87,9 +83,9 @@ def setup_help_database(help_db_name):
 def drop_user_and_database(db_name, root_login, root_password):
 	frappe.local.db = get_root_connection(root_login, root_password)
 	dbman = DbManager(frappe.local.db)
+	dbman.drop_database(db_name)
 	dbman.delete_user(db_name, host="%")
 	dbman.delete_user(db_name)
-	dbman.drop_database(db_name)
 
 
 def bootstrap_database(db_name, verbose, source_sql=None):
@@ -135,7 +131,7 @@ def check_database_settings():
 	else:
 		expected_variables = expected_settings_10_3_later
 
-	mariadb_variables = frappe._dict(frappe.db.sql("""show variables"""))
+	mariadb_variables = frappe._dict(frappe.db.sql("show variables"))
 	# Check each expected value vs. actuals:
 	result = True
 	for key, expected_value in expected_variables.items():
@@ -146,16 +142,19 @@ def check_database_settings():
 			)
 			result = False
 	if not result:
-		site = frappe.local.site
-		msg = (
-			"Creation of your site - {x} failed because MariaDB is not properly {sep}"
-			"configured.  If using version 10.2.x or earlier, make sure you use the {sep}"
-			"the Barracuda storage engine. {sep}{sep}"
-			"Please verify the settings above in MariaDB's my.cnf.  Restart MariaDB.  And {sep}"
-			"then run `bench new-site {x}` again.{sep2}"
-			""
-		).format(x=site, sep2="\n" * 2, sep="\n")
-		print_db_config(msg)
+		print(
+			(
+				"=" * 80 + "\n"
+				"Creation of your site - {x} failed because MariaDB is not properly {sep}"
+				"configured.  If using version 10.2.x or earlier, make sure you use the {sep}"
+				"the Barracuda storage engine. {sep}{sep}"
+				"Please verify the settings above in MariaDB's my.cnf.  Restart MariaDB.  And {sep}"
+				"then run `bench new-site {x}` again.{sep2}"
+				""
+				"=" * 80
+			).format(x=frappe.local.site, sep2="\n" * 2, sep="\n")
+		)
+
 	return result
 
 
@@ -177,9 +176,3 @@ def get_root_connection(root_login, root_password):
 		)
 
 	return frappe.local.flags.root_connection
-
-
-def print_db_config(explanation):
-	print("=" * 80)
-	print(explanation)
-	print("=" * 80)

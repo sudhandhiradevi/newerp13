@@ -1,6 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
+# License: MIT. See LICENSE
 import base64
 import binascii
 import json
@@ -93,7 +92,8 @@ def handle():
 
 					frappe.local.response.update({"data": doc.save().as_dict()})
 
-					if doc.parenttype and doc.parent:
+					# check for child table doctype
+					if doc.get("parenttype"):
 						frappe.get_doc(doc.parenttype, doc.parent).save()
 
 					frappe.db.commit()
@@ -157,14 +157,17 @@ def get_request_form_data():
 	else:
 		data = frappe.local.form_dict.data
 
-	return frappe.parse_json(data)
+	try:
+		return frappe.parse_json(data)
+	except ValueError:
+		return frappe.local.form_dict
 
 
 def validate_auth():
 	"""
 	Authenticate and sets user for the request.
 	"""
-	authorization_header = frappe.get_request_header("Authorization", str()).split(" ")
+	authorization_header = frappe.get_request_header("Authorization", "").split(" ")
 
 	if len(authorization_header) == 2:
 		validate_oauth(authorization_header)

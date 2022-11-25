@@ -1,23 +1,30 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import csv
 import os
 import re
 
-from six import string_types
-
 import frappe
 import frappe.permissions
 from frappe import _
 from frappe.core.doctype.access_log.access_log import make_access_log
-from frappe.core.doctype.data_import_legacy.importer import get_data_keys
 from frappe.utils import cint, cstr, format_datetime, format_duration, formatdate, parse_json
 from frappe.utils.csvutils import UnicodeWriter
 
 reflags = {"I": re.I, "L": re.L, "M": re.M, "U": re.U, "S": re.S, "X": re.X, "D": re.DEBUG}
+
+
+def get_data_keys():
+	return frappe._dict(
+		{
+			"data_separator": _("Start entering data below this line"),
+			"main_table": _("Table") + ":",
+			"parent_table": _("Parent Table") + ":",
+			"columns": _("Column Name") + ":",
+			"doctype": _("DocType") + ":",
+		}
+	)
 
 
 @frappe.whitelist()
@@ -86,7 +93,7 @@ class DataExporter:
 
 		self.docs_to_export = {}
 		if self.doctype:
-			if isinstance(self.doctype, string_types):
+			if isinstance(self.doctype, str):
 				self.doctype = [self.doctype]
 
 			if len(self.doctype) > 1:
@@ -324,7 +331,7 @@ class DataExporter:
 		order_by = None
 		table_columns = frappe.db.get_table_columns(self.parent_doctype)
 		if "lft" in table_columns and "rgt" in table_columns:
-			order_by = "`tab{doctype}`.`lft` asc".format(doctype=self.parent_doctype)
+			order_by = f"`tab{self.parent_doctype}`.`lft` asc"
 		# get permitted data only
 		self.data = frappe.get_list(
 			self.doctype, fields=["*"], filters=self.filters, limit_page_length=None, order_by=order_by
@@ -379,7 +386,7 @@ class DataExporter:
 		d = doc.copy()
 		meta = frappe.get_meta(dt)
 		if self.all_doctypes:
-			d.name = '"' + d.name + '"'
+			d.name = f'"{d.name}"'
 
 		if len(rows) < rowidx + 1:
 			rows.append([""] * (len(self.columns) + 1))
@@ -403,7 +410,7 @@ class DataExporter:
 				row[_column_start_end.start + i + 1] = value
 
 	def build_response_as_excel(self):
-		filename = frappe.generate_hash("", 10)
+		filename = frappe.generate_hash(length=10)
 		with open(filename, "wb") as f:
 			f.write(cstr(self.writer.getvalue()).encode("utf-8"))
 		f = open(filename)

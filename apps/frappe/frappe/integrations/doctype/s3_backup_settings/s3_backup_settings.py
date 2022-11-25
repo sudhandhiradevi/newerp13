@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2017, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import print_function, unicode_literals
-
+# License: MIT. See LICENSE
 import os
 import os.path
 
@@ -80,8 +76,8 @@ def take_backups_monthly():
 
 
 def take_backups_if(freq):
-	if cint(frappe.db.get_value("S3 Backup Settings", None, "enabled")):
-		if frappe.db.get_value("S3 Backup Settings", None, "frequency") == freq:
+	if cint(frappe.db.get_single_value("S3 Backup Settings", "enabled")):
+		if frappe.db.get_single_value("S3 Backup Settings", "frequency") == freq:
 			take_backups_s3()
 
 

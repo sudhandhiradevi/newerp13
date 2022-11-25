@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 import frappe.www.list
@@ -14,4 +12,5 @@ def get_context(context):
 	if frappe.session.user == "Guest":
 		frappe.throw(_("You need to be logged in to access this page"), frappe.PermissionError)
 
+	context.current_user = frappe.get_doc("User", frappe.session.user)
 	context.show_sidebar = True

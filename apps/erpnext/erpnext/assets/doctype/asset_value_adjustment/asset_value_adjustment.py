@@ -12,9 +12,6 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 )
 from erpnext.assets.doctype.asset.asset import get_depreciation_amount
 from erpnext.assets.doctype.asset.depreciation import get_depreciation_accounts
-from erpnext.regional.india.utils import (
-	get_depreciation_amount as get_depreciation_amount_for_india,
-)
 
 
 class AssetValueAdjustment(Document):
@@ -37,7 +34,7 @@ class AssetValueAdjustment(Document):
 				_("Asset Value Adjustment cannot be posted before Asset's purchase date <b>{0}</b>.").format(
 					formatdate(asset_purchase_date)
 				),
-				title="Incorrect Date",
+				title=_("Incorrect Date"),
 			)
 
 	def set_difference_amount(self):
@@ -133,10 +130,7 @@ class AssetValueAdjustment(Document):
 						depreciation_amount = days * rate_per_day
 						from_date = data.schedule_date
 					else:
-						if country == "India":
-							depreciation_amount = get_depreciation_amount_for_india(asset, value_after_depreciation, d)
-						else:
-							depreciation_amount = get_depreciation_amount(asset, value_after_depreciation, d)
+						depreciation_amount = get_depreciation_amount(asset, value_after_depreciation, d)
 
 					if depreciation_amount:
 						value_after_depreciation -= flt(depreciation_amount)

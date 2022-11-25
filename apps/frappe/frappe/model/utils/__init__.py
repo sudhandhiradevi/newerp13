@@ -1,18 +1,12 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import print_function, unicode_literals
-
-import io
+# License: MIT. See LICENSE
 import re
-
-from six import text_type
-from six.moves import range
 
 import frappe
 from frappe import _
 from frappe.build import html_to_js_template
 from frappe.utils import cstr
+from frappe.utils.caching import site_cache
 
 STANDARD_FIELD_CONVERSION_MAP = {
 	"name": "Link",
@@ -27,10 +21,7 @@ STANDARD_FIELD_CONVERSION_MAP = {
 	"_assign": "Text",
 	"docstatus": "Int",
 }
-
-"""
-Model utilities, unclassified functions
-"""
+INCLUDE_DIRECTIVE_PATTERN = re.compile(r"""{% include\s['"](.*)['"]\s%}""")
 
 
 def set_default(doc, key):
@@ -56,7 +47,7 @@ def set_field_property(filters, key, value):
 	for d in docs:
 		d.get("fields", filters)[0].set(key, value)
 		d.save()
-		print("Updated {0}".format(d.name))
+		print(f"Updated {d.name}")
 
 	frappe.db.commit()
 
@@ -73,18 +64,18 @@ def render_include(content):
 	# try 5 levels of includes
 	for i in range(5):
 		if "{% include" in content:
-			paths = re.findall(r"""{% include\s['"](.*)['"]\s%}""", content)
+			paths = INCLUDE_DIRECTIVE_PATTERN.findall(content)
 			if not paths:
 				frappe.throw(_("Invalid include path"), InvalidIncludePath)
 
 			for path in paths:
 				app, app_path = path.split("/", 1)
-				with io.open(frappe.get_app_path(app, app_path), "r", encoding="utf-8") as f:
+				with open(frappe.get_app_path(app, app_path), encoding="utf-8") as f:
 					include = f.read()
 					if path.endswith(".html"):
 						include = html_to_js_template(path, include)
 
-					content = re.sub(r"""{{% include\s['"]{0}['"]\s%}}""".format(path), include, content)
+					content = re.sub(rf"""{{% include\s['"]{path}['"]\s%}}""", include, content)
 
 		else:
 			break
@@ -135,3 +126,8 @@ def get_fetch_values(doctype, fieldname, value):
 		result[target_fieldname] = db_values.get(source_fieldname)
 
 	return result
+
+
+@site_cache()
+def is_virtual_doctype(doctype):
+	return frappe.db.get_value("DocType", doctype, "is_virtual")

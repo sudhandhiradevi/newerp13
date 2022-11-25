@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -30,7 +28,7 @@ class SystemSettings(Document):
 
 		if self.enable_two_factor_auth:
 			if self.two_factor_method == "SMS":
-				if not frappe.db.get_value("SMS Settings", None, "sms_gateway_url"):
+				if not frappe.db.get_single_value("SMS Settings", "sms_gateway_url"):
 					frappe.throw(
 						_("Please setup SMS before setting it as an authentication method, via SMS Settings")
 					)
@@ -45,12 +43,27 @@ class SystemSettings(Document):
 		):
 			frappe.flags.update_last_reset_password_date = True
 
+		self.validate_user_pass_login()
+
+	def validate_user_pass_login(self):
+		if not self.disable_user_pass_login:
+			return
+
+		social_login_enabled = frappe.db.exists("Social Login Key", {"enable_social_login": 1})
+		ldap_enabled = frappe.db.get_single_value("LDAP Settings", "enabled")
+
+		if not (social_login_enabled or ldap_enabled):
+			frappe.throw(
+				_(
+					"Please enable atleast one Social Login Key or LDAP before disabling username/password based login."
+				)
+			)
+
 	def on_update(self):
 		self.set_defaults()
 
 		frappe.cache().delete_value("system_settings")
 		frappe.cache().delete_value("time_zone")
-		frappe.local.system_settings = {}
 
 		if frappe.flags.update_last_reset_password_date:
 			update_last_reset_password_date()

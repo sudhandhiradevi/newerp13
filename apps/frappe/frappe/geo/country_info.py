@@ -1,10 +1,9 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-# all country info
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
+
+# all country info
 import os
 
 import frappe
@@ -23,7 +22,7 @@ def get_country_info(country=None):
 
 
 def get_all():
-	with open(os.path.join(os.path.dirname(__file__), "country_info.json"), "r") as local_info:
+	with open(os.path.join(os.path.dirname(__file__), "country_info.json")) as local_info:
 		all_data = json.loads(local_info.read())
 	return all_data
 
@@ -60,7 +59,7 @@ def get_translated_dict():
 
 
 def update():
-	with open(os.path.join(os.path.dirname(__file__), "currency_info.json"), "r") as nformats:
+	with open(os.path.join(os.path.dirname(__file__), "currency_info.json")) as nformats:
 		nformats = json.loads(nformats.read())
 
 	all_data = get_all()

@@ -1,17 +1,13 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
 import frappe.cache_manager
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestMilestoneTracker(unittest.TestCase):
+class TestMilestoneTracker(FrappeTestCase):
 	def test_milestone(self):
-		frappe.db.sql("delete from `tabMilestone Tracker`")
+		frappe.db.delete("Milestone Tracker")
 
 		frappe.cache().delete_key("milestone_tracker_map")
 
@@ -46,5 +42,5 @@ class TestMilestoneTracker(unittest.TestCase):
 		self.assertEqual(milestones[0].value, "Closed")
 
 		# cleanup
-		frappe.db.sql("delete from tabMilestone")
+		frappe.db.delete("Milestone")
 		milestone_tracker.delete()

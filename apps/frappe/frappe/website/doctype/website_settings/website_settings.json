@@ -43,6 +43,7 @@
   "copyright",
   "address",
   "footer_items",
+  "footer_powered",
   "footer_template",
   "footer_template_values",
   "edit_footer_template_values",
@@ -64,7 +65,10 @@
   "subdomain",
   "head_html",
   "robots_txt",
-  "route_redirects"
+  "route_redirects",
+  "account_deletion_settings_section",
+  "show_account_deletion_link",
+  "auto_account_deletion"
  ],
  "fields": [
   {
@@ -140,7 +144,6 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "top_bar_items",
    "fieldname": "top_bar",
    "fieldtype": "Section Break",
    "label": "Navbar"
@@ -187,7 +190,8 @@
    "description": "Address and other legal information you may want to put in the footer.",
    "fieldname": "address",
    "fieldtype": "Text Editor",
-   "label": "Address"
+   "label": "Address",
+   "max_height": "8rem"
   },
   {
    "fieldname": "footer_items",
@@ -268,7 +272,7 @@
   },
   {
    "default": "0",
-   "description": "To use Google Indexing, enable <a href=\"#Form/Google Settings\">Google Settings</a>.",
+   "description": "To use Google Indexing, enable <a href=\"/app/google-settings\">Google Settings</a>.",
    "fieldname": "enable_google_indexing",
    "fieldtype": "Check",
    "label": "Enable Google Indexing"
@@ -389,9 +393,32 @@
    "label": "App Logo"
   },
   {
-    "fieldname": "splash_image",
-    "fieldtype": "Attach Image",
-    "label": "Splash Image"
+   "collapsible": 1,
+   "fieldname": "account_deletion_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Account Deletion Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_account_deletion_link",
+   "fieldtype": "Check",
+   "label": "Show Account Deletion Link in My Account Page"
+  },
+  {
+   "default": "72",
+   "fieldname": "auto_account_deletion",
+   "fieldtype": "Int",
+   "label": "Auto Account Deletion within (Hours)"
+  },
+  {
+   "fieldname": "footer_powered",
+   "fieldtype": "Small Text",
+   "label": "Footer \"Powered By\""
+  },
+  {
+   "fieldname": "splash_image",
+   "fieldtype": "Attach Image",
+   "label": "Splash Image"
   }
  ],
  "icon": "fa fa-cog",
@@ -422,5 +449,6 @@
  ],
  "sort_field": "modified",
  "sort_order": "ASC",
+ "states": [],
  "track_changes": 1
 }

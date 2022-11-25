@@ -1,9 +1,4 @@
-from __future__ import unicode_literals
-
 import random
-
-from six import string_types
-from six.moves import range
 
 import frappe
 
@@ -22,7 +17,7 @@ def add_random_children(doc, fieldname, rows, randomize, unique=None):
 	for i in range(nrows):
 		d = {}
 		for key, val in randomize.items():
-			if isinstance(val[0], string_types):
+			if isinstance(val[0], str):
 				d[key] = get_random(*val)
 			else:
 				d[key] = random.randrange(*val)
@@ -38,16 +33,21 @@ def get_random(doctype, filters=None, doc=False):
 	condition = []
 	if filters:
 		for key, val in filters.items():
-			condition.append("%s='%s'" % (key, str(val).replace("'", "'")))
+			condition.append("{}='{}'".format(key, str(val).replace("'", "'")))
 	if condition:
 		condition = " where " + " and ".join(condition)
 	else:
 		condition = ""
 
-	out = frappe.db.sql(
-		"""select name from `tab%s` %s
-		order by RAND() limit 0,1"""
-		% (doctype, condition)
+	out = frappe.db.multisql(
+		{
+			"mariadb": """select name from `tab%s` %s
+		order by RAND() limit 1 offset 0"""
+			% (doctype, condition),
+			"postgres": """select name from `tab%s` %s
+		order by RANDOM() limit 1 offset 0"""
+			% (doctype, condition),
+		}
 	)
 
 	out = out and out[0][0] or None

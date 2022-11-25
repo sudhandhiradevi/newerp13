@@ -1,10 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2021, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
-
-from six import iteritems
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
@@ -47,13 +42,14 @@ class UserType(Document):
 
 		modules = frappe.get_all(
 			"DocType",
-			fields=["distinct module as module"],
 			filters={"name": ("in", [d.document_type for d in self.user_doctypes])},
+			distinct=True,
+			pluck="module",
 		)
 
 		self.set("user_type_modules", [])
-		for row in modules:
-			self.append("user_type_modules", {"module": row.module})
+		for module in modules:
+			self.append("user_type_modules", {"module": module})
 
 	def validate_document_type_limit(self):
 		limit = frappe.conf.get("user_type_doctype_limit", {}).get(frappe.scrub(self.name))
@@ -135,7 +131,7 @@ class UserType(Document):
 		self.select_doctypes = []
 
 		select_doctypes = []
-		user_doctypes = tuple([row.document_type for row in self.user_doctypes])
+		user_doctypes = [row.document_type for row in self.user_doctypes]
 
 		for doctype in user_doctypes:
 			doc = frappe.get_meta(doctype)
@@ -214,7 +210,7 @@ def get_user_linked_doctypes(doctype, txt, searchfield, start, page_len, filters
 		["DocType", "issingle", "=", 0],
 		["DocType", "module", "not in", modules],
 		["DocType", "read_only", "=", 0],
-		["DocType", "name", "like", "%{0}%".format(txt)],
+		["DocType", "name", "like", f"%{txt}%"],
 	]
 
 	doctypes = frappe.get_all(
@@ -228,7 +224,7 @@ def get_user_linked_doctypes(doctype, txt, searchfield, start, page_len, filters
 	)
 
 	custom_dt_filters = [
-		["Custom Field", "dt", "like", "%{0}%".format(txt)],
+		["Custom Field", "dt", "like", f"%{txt}%"],
 		["Custom Field", "options", "=", "User"],
 		["Custom Field", "fieldtype", "=", "Link"],
 	]
@@ -302,7 +298,7 @@ def apply_permissions_for_non_standard_user_type(doc, method=None):
 	if not user_types:
 		return
 
-	for user_type, data in iteritems(user_types):
+	for user_type, data in user_types.items():
 		if not doc.get(data[1]) or doc.doctype != data[0]:
 			continue
 

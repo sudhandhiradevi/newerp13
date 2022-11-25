@@ -1,18 +1,27 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-import unittest
-from unittest.mock import Mock
+# Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
+from contextlib import contextmanager
+from datetime import timedelta
+from unittest.mock import Mock, patch
 
 import frappe
+from frappe.app import make_form_dict
+from frappe.desk.doctype.note.note import Note
 from frappe.model.naming import make_autoname, parse_naming_series, revert_series_if_last
-from frappe.utils import cint, set_request
-from frappe.website import render
+from frappe.tests.utils import FrappeTestCase
+from frappe.utils import cint, now_datetime, set_request
+from frappe.website.serve import get_response
 
 from . import update_system_settings
 
 
-class TestDocument(unittest.TestCase):
+class CustomTestNote(Note):
+	@property
+	def age(self):
+		return now_datetime() - self.creation
+
+
+class TestDocument(FrappeTestCase):
 	def test_get_return_empty_list_for_table_field_if_none(self):
 		d = frappe.get_doc({"doctype": "User"})
 		self.assertEqual(d.get("roles"), [])
@@ -92,6 +101,14 @@ class TestDocument(unittest.TestCase):
 		d.insert()
 		self.assertEqual(frappe.db.get_value("User", d.name), d.name)
 
+	def test_text_editor_field(self):
+		try:
+			frappe.get_doc(
+				doctype="Activity Log", subject="test", message='<img src="test.png" />'
+			).insert()
+		except frappe.MandatoryError:
+			self.fail("Text Editor false positive mandatory error")
+
 	def test_conflict_validation(self):
 		d1 = self.test_insert()
 		d2 = frappe.get_doc(d1.doctype, d1.name)
@@ -145,6 +162,12 @@ class TestDocument(unittest.TestCase):
 		self.assertRaises(frappe.ValidationError, d.validate)
 		self.assertRaises(frappe.ValidationError, d.run_method, "validate")
 		self.assertRaises(frappe.ValidationError, d.save)
+
+	def test_db_set_no_query_on_new_docs(self):
+		user = frappe.new_doc("User")
+		user.db_set("user_type", "Magical Wizard")
+		with self.assertQueryCount(0):
+			user.db_set("user_type", "Magical Wizard")
 
 	def test_update_after_submit(self):
 		d = self.test_insert()
@@ -241,7 +264,7 @@ class TestDocument(unittest.TestCase):
 					{"label": "Currency", "fieldname": "currency", "reqd": 1, "fieldtype": "Currency"},
 				],
 			}
-		).insert()
+		).insert(ignore_if_duplicate=True)
 
 		frappe.delete_doc_if_exists("Currency", "INR", 1)
 
@@ -254,15 +277,75 @@ class TestDocument(unittest.TestCase):
 		).insert()
 
 		d = frappe.get_doc({"doctype": "Test Formatted", "currency": 100000})
-		self.assertEquals(d.get_formatted("currency", currency="INR", format="#,###.##"), "₹ 100,000.00")
+		self.assertEqual(d.get_formatted("currency", currency="INR", format="#,###.##"), "₹ 100,000.00")
+
+		# should work even if options aren't set in df
+		# and currency param is not passed
+		self.assertIn("0", d.get_formatted("currency"))
 
 	def test_limit_for_get(self):
 		doc = frappe.get_doc("DocType", "DocType")
 		# assuming DocType has more than 3 Data fields
-		self.assertEquals(len(doc.get("fields", limit=3)), 3)
+		self.assertEqual(len(doc.get("fields", limit=3)), 3)
 
 		# limit with filters
-		self.assertEquals(len(doc.get("fields", filters={"fieldtype": "Data"}, limit=3)), 3)
+		self.assertEqual(len(doc.get("fields", filters={"fieldtype": "Data"}, limit=3)), 3)
+
+	def test_virtual_fields(self):
+		"""Virtual fields are accessible via API and Form views, whenever .as_dict is invoked"""
+		frappe.db.delete("Custom Field", {"dt": "Note", "fieldname": "age"})
+		note = frappe.new_doc("Note")
+		note.content = "some content"
+		note.title = frappe.generate_hash(length=20)
+		note.insert()
+
+		def patch_note():
+			return patch("frappe.controllers", new={frappe.local.site: {"Note": CustomTestNote}})
+
+		@contextmanager
+		def customize_note(with_options=False):
+			options = (
+				"frappe.utils.now_datetime() - frappe.utils.get_datetime(doc.creation)" if with_options else ""
+			)
+			custom_field = frappe.get_doc(
+				{
+					"doctype": "Custom Field",
+					"dt": "Note",
+					"fieldname": "age",
+					"fieldtype": "Data",
+					"read_only": True,
+					"is_virtual": True,
+					"options": options,
+				}
+			)
+
+			try:
+				yield custom_field.insert(ignore_if_duplicate=True)
+			finally:
+				custom_field.delete()
+				# to truly delete the field
+				# creation is commited due to DDL
+				frappe.db.commit()
+
+		with patch_note():
+			doc = frappe.get_last_doc("Note")
+			self.assertIsInstance(doc, CustomTestNote)
+			self.assertIsInstance(doc.age, timedelta)
+			self.assertIsNone(doc.as_dict().get("age"))
+			self.assertIsNone(doc.get_valid_dict().get("age"))
+
+		with customize_note(), patch_note():
+			doc = frappe.get_last_doc("Note")
+			self.assertIsInstance(doc, CustomTestNote)
+			self.assertIsInstance(doc.age, timedelta)
+			self.assertIsInstance(doc.as_dict().get("age"), timedelta)
+			self.assertIsInstance(doc.get_valid_dict().get("age"), timedelta)
+
+		with customize_note(with_options=True):
+			doc = frappe.get_last_doc("Note")
+			self.assertIsInstance(doc, Note)
+			self.assertIsInstance(doc.as_dict().get("age"), timedelta)
+			self.assertIsInstance(doc.get_valid_dict().get("age"), timedelta)
 
 	def test_run_method(self):
 		doc = frappe.get_last_doc("User")
@@ -282,6 +365,39 @@ class TestDocument(unittest.TestCase):
 		# run_method should get overridden
 		self.assertEqual(doc.run_method("as_dict"), "success")
 
+	def test_extend(self):
+		doc = frappe.get_last_doc("User")
+		self.assertRaises(ValueError, doc.extend, "user_emails", None)
+
+		# allow calling doc.extend with iterable objects
+		doc.extend("user_emails", ())
+		doc.extend("user_emails", [])
+		doc.extend("user_emails", (x for x in ()))
+
+	def test_set(self):
+		doc = frappe.get_last_doc("User")
+
+		# setting None should init a table field to empty list
+		doc.set("user_emails", None)
+		self.assertEqual(doc.user_emails, [])
+
+		# setting a string value should fail
+		self.assertRaises(TypeError, doc.set, "user_emails", "fail")
+		# but not when loading from db
+		doc.flags.ignore_children = True
+		doc.update({"user_emails": "ok"})
+
+	def test_doc_events(self):
+		"""validate that all present doc events are correct methods"""
+
+		for doctype, doc_hooks in frappe.get_doc_hooks().items():
+			for _, hooks in doc_hooks.items():
+				for hook in hooks:
+					try:
+						frappe.get_attr(hook)
+					except Exception as e:
+						self.fail(f"Invalid doc hook: {doctype}:{hook}\n{e}")
+
 	def test_realtime_notify(self):
 		todo = frappe.new_doc("ToDo")
 		todo.description = "this will trigger realtime update"
@@ -295,49 +411,61 @@ class TestDocument(unittest.TestCase):
 		todo.save()
 		self.assertEqual(todo.notify_update.call_count, 1)
 
+	def test_error_on_saving_new_doc_with_name(self):
+		"""Trying to save a new doc with name should raise DoesNotExistError"""
 
-class TestDocumentWebView(unittest.TestCase):
-	def get(self, path):
-		from frappe.app import make_form_dict
+		doc = frappe.get_doc(
+			{
+				"doctype": "ToDo",
+				"description": "this should raise frappe.DoesNotExistError",
+				"name": "lets-trick-doc-save",
+			}
+		)
 
-		frappe.set_user("Guest")
+		self.assertRaises(frappe.DoesNotExistError, doc.save)
+
+
+class TestDocumentWebView(FrappeTestCase):
+	def get(self, path, user="Guest"):
+		frappe.set_user(user)
 		set_request(method="GET", path=path)
 		make_form_dict(frappe.local.request)
-		response = render.render()
+		response = get_response()
 		frappe.set_user("Administrator")
 		return response
 
 	def test_web_view_link_authentication(self):
 		todo = frappe.get_doc({"doctype": "ToDo", "description": "Test"}).insert()
 		document_key = todo.get_document_share_key()
-		frappe.db.commit()
 
 		# with old-style signature key
 		update_system_settings({"allow_older_web_view_links": True}, True)
 		old_document_key = todo.get_signature()
 		url = f"/ToDo/{todo.name}?key={old_document_key}"
-		self.assertEquals(self.get(url).status, "200 OK")
+		self.assertEqual(self.get(url).status, "200 OK")
 
 		update_system_settings({"allow_older_web_view_links": False}, True)
-		self.assertEquals(self.get(url).status, "401 UNAUTHORIZED")
+		self.assertEqual(self.get(url).status, "401 UNAUTHORIZED")
 
 		# with valid key
 		url = f"/ToDo/{todo.name}?key={document_key}"
-		self.assertEquals(self.get(url).status, "200 OK")
+		self.assertEqual(self.get(url).status, "200 OK")
 
 		# with invalid key
 		invalid_key_url = f"/ToDo/{todo.name}?key=INVALID_KEY"
-		self.assertEquals(self.get(invalid_key_url).status, "401 UNAUTHORIZED")
+		self.assertEqual(self.get(invalid_key_url).status, "401 UNAUTHORIZED")
 
 		# expire the key
 		document_key_doc = frappe.get_doc("Document Share Key", {"key": document_key})
 		document_key_doc.expires_on = "2020-01-01"
 		document_key_doc.save(ignore_permissions=True)
-		frappe.db.commit()
 
 		# with expired key
-		self.assertEquals(self.get(url).status, "410 GONE")
+		self.assertEqual(self.get(url).status, "410 GONE")
 
 		# without key
 		url_without_key = f"/ToDo/{todo.name}"
-		self.assertEquals(self.get(url_without_key).status, "403 FORBIDDEN")
+		self.assertEqual(self.get(url_without_key).status, "403 FORBIDDEN")
+
+		# Logged-in user can access the page without key
+		self.assertEqual(self.get(url_without_key, "Administrator").status, "200 OK")

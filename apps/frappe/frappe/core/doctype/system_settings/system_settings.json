@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2014-04-17 16:53:52.640856",
+ "creation": "2022-01-06 03:18:16.326761",
  "doctype": "DocType",
  "document_type": "System",
  "engine": "InnoDB",
@@ -11,7 +11,6 @@
   "language",
   "column_break_3",
   "time_zone",
-  "is_first_startup",
   "enable_onboarding",
   "setup_complete",
   "date_and_number_format",
@@ -24,6 +23,7 @@
   "first_day_of_the_week",
   "sec_backup_limit",
   "backup_limit",
+  "encrypt_backup",
   "background_workers",
   "enable_scheduler",
   "dormant_days",
@@ -39,12 +39,14 @@
   "deny_multiple_sessions",
   "allow_login_using_mobile_number",
   "allow_login_using_user_name",
+  "disable_user_pass_login",
   "allow_error_traceback",
   "strip_exif_metadata_from_uploaded_images",
   "allow_older_web_view_links",
   "password_settings",
   "logout_on_password_reset",
   "force_user_to_reset_password",
+  "reset_password_link_expiry_duration",
   "password_reset_limit",
   "column_break_31",
   "enable_password_policy",
@@ -103,15 +105,8 @@
    "fieldname": "time_zone",
    "fieldtype": "Select",
    "label": "Time Zone",
+   "read_only": 1,
    "reqd": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "is_first_startup",
-   "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Is First Startup",
-   "read_only": 1
   },
   {
    "default": "0",
@@ -213,11 +208,11 @@
    "label": "Security"
   },
   {
-   "default": "06:00",
-   "description": "Session Expiry in Hours e.g. 06:00",
+   "default": "24:00",
+   "description": "Example: Setting this to 24:00 will log out a user if they are not active for 24:00 hours.",
    "fieldname": "session_expiry",
    "fieldtype": "Data",
-   "label": "Session Expiry"
+   "label": "Session Expiry (idle timeout)"
   },
   {
    "default": "720:00",
@@ -466,6 +461,12 @@
    "label": "Strip EXIF tags from uploaded images"
   },
   {
+   "default": "0",
+   "fieldname": "encrypt_backup",
+   "fieldtype": "Check",
+   "label": "Encrypt Backups"
+  },
+  {
    "collapsible": 1,
    "fieldname": "system_updates_section",
    "fieldtype": "Section Break",
@@ -485,6 +486,19 @@
    "options": "Sunday\nMonday\nTuesday\nWednesday\nThursday\nFriday\nSaturday"
   },
   {
+   "default": "30",
+   "description": "Number of days after which the document Web View link shared on email will be expired",
+   "fieldname": "document_share_key_expiry",
+   "fieldtype": "Int",
+   "label": "Document Share Key Expiry (in Days)"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_older_web_view_links",
+   "fieldtype": "Check",
+   "label": "Allow Older Web View Links (Insecure)"
+  },
+  {
    "fieldname": "column_break_64",
    "fieldtype": "Column Break"
   },
@@ -501,29 +515,30 @@
    "label": "Disable Change Log Notification"
   },
   {
-   "default": "30",
-   "description": "Number of days after which the document Web View link shared on email will be expired",
-   "fieldname": "document_share_key_expiry",
-   "fieldtype": "Int",
-   "label": "Document Share Key Expiry (in Days)"
-  },
-  {
-   "default": "0",
-   "fieldname": "allow_older_web_view_links",
-   "fieldtype": "Check",
-   "label": "Allow Older Web View Links (Insecure)"
+   "default": "1200",
+   "fieldname": "reset_password_link_expiry_duration",
+   "fieldtype": "Duration",
+   "label": "Reset Password Link Expiry Duration",
+   "non_negative": 1
   },
   {
    "default": "3",
    "fieldname": "email_retry_limit",
    "fieldtype": "Int",
    "label": "Email Retry Limit"
+  },
+  {
+   "default": "0",
+   "description": "Make sure to configure a Social Login Key before disabling to prevent lockout",
+   "fieldname": "disable_user_pass_login",
+   "fieldtype": "Check",
+   "label": "Disable Username/Password Login"
   }
  ],
  "icon": "fa fa-cog",
  "issingle": 1,
  "links": [],
- "modified": "2022-06-21 13:55:04.796152",
+ "modified": "2022-10-30 12:02:46.639170",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "System Settings",
@@ -540,5 +555,6 @@
  "quick_entry": 1,
  "sort_field": "modified",
  "sort_order": "ASC",
+ "states": [],
  "track_changes": 1
 }

@@ -1,13 +1,10 @@
 # Copyright (c) 2018, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
 
 import frappe
 from frappe.desk.notifications import clear_notifications, delete_notification_count_for
-from frappe.model.document import Document
 
 common_default_keys = ["__default", "__global"]
 
@@ -17,6 +14,8 @@ doctype_map_keys = (
 	"milestone_tracker_map",
 	"event_consumer_document_type_map",
 )
+
+bench_cache_keys = ("assets_json",)
 
 global_cache_keys = (
 	"app_hooks",
@@ -60,8 +59,8 @@ user_cache_keys = (
 )
 
 doctype_cache_keys = (
-	"meta",
-	"form_meta",
+	"doctype_meta",
+	"doctype_form_meta",
 	"table_columns",
 	"last_modified",
 	"linked_doctypes",
@@ -97,11 +96,12 @@ def clear_domain_cache(user=None):
 
 
 def clear_global_cache():
-	from frappe.website.render import clear_cache as clear_website_cache
+	from frappe.website.utils import clear_website_cache
 
 	clear_doctype_cache()
 	clear_website_cache()
 	frappe.cache().delete_value(global_cache_keys)
+	frappe.cache().delete_value(bench_cache_keys)
 	frappe.setup_module_map()
 
 
@@ -117,9 +117,6 @@ def clear_doctype_cache(doctype=None):
 	clear_controller_cache(doctype)
 	cache = frappe.cache()
 
-	if getattr(frappe.local, "meta_cache") and (doctype in frappe.local.meta_cache):
-		del frappe.local.meta_cache[doctype]
-
 	for key in ("is_table", "doctype_modules", "document_cache"):
 		cache.delete_value(key)
 
@@ -133,11 +130,17 @@ def clear_doctype_cache(doctype=None):
 		clear_single(doctype)
 
 		# clear all parent doctypes
-
-		for dt in frappe.db.get_all(
+		for dt in frappe.get_all(
 			"DocField", "parent", dict(fieldtype=["in", frappe.model.table_fields], options=doctype)
 		):
 			clear_single(dt.parent)
+
+		# clear all parent doctypes
+		if not frappe.flags.in_install:
+			for dt in frappe.get_all(
+				"Custom Field", "dt", dict(fieldtype=["in", frappe.model.table_fields], options=doctype)
+			):
+				clear_single(dt.dt)
 
 		# clear all notifications
 		delete_notification_count_for(doctype)
@@ -200,7 +203,7 @@ def build_table_count_cache():
 	data = (frappe.qb.from_(information_schema.tables).select(table_name, table_rows)).run(
 		as_dict=True
 	)
-	counts = {d.get("name").lstrip("tab"): d.get("count", None) for d in data}
+	counts = {d.get("name").replace("tab", "", 1): d.get("count", None) for d in data}
 	_cache.set_value("information_schema:counts", counts)
 
 	return counts

@@ -1,12 +1,12 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: GNU General Public License v3. See license.txt
 
-
 import frappe
 from frappe import _
 from frappe.utils import cstr, getdate
 
 
+# nosemgrep
 def set_default_settings(args):
 	# enable default currency
 	frappe.db.set_value("Currency", args.get("currency"), "enabled", 1)
@@ -26,9 +26,6 @@ def set_default_settings(args):
 	system_settings = frappe.get_doc("System Settings")
 	system_settings.email_footer_address = args.get("company_name")
 	system_settings.save()
-
-	domain_settings = frappe.get_single("Domain Settings")
-	domain_settings.set_active_domains(args.get("domains"))
 
 	stock_settings = frappe.get_doc("Stock Settings")
 	stock_settings.item_naming_by = "Item Code"
@@ -62,19 +59,6 @@ def set_default_settings(args):
 	delivery_settings = frappe.get_doc("Delivery Settings")
 	delivery_settings.dispatch_template = _("Dispatch Notification")
 	delivery_settings.save()
-
-	hr_settings = frappe.get_doc("HR Settings")
-	hr_settings.emp_created_by = "Naming Series"
-	hr_settings.leave_approval_notification_template = _("Leave Approval Notification")
-	hr_settings.leave_status_notification_template = _("Leave Status Notification")
-
-	hr_settings.send_interview_reminder = 1
-	hr_settings.interview_reminder_template = _("Interview Reminder")
-	hr_settings.remind_before = "00:15:00"
-
-	hr_settings.send_interview_feedback_reminder = 1
-	hr_settings.feedback_reminder_notification_template = _("Interview Feedback Reminder")
-	hr_settings.save()
 
 
 def set_no_copy_fields_in_variant_settings():

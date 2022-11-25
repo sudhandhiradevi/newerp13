@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
 import os
-
-from six import string_types
 
 import frappe
 from frappe import _
@@ -61,9 +56,7 @@ class Notification(Document):
 			if not os.path.exists(path + ".py"):
 				with open(path + ".py", "w") as f:
 					f.write(
-						"""from __future__ import unicode_literals
-
-import frappe
+						"""import frappe
 
 def get_context(context):
 	# do your magic here
@@ -147,11 +140,14 @@ def get_context(context):
 				self.create_system_notification(doc, context)
 
 		except Exception:
-			frappe.log_error(title="Failed to send notification", message=frappe.get_traceback())
+			self.log_error("Failed to send Notification")
 
 		if self.set_property_after_alert:
 			allow_update = True
-			if doc.docstatus == 1 and not doc.meta.get_field(self.set_property_after_alert).allow_on_submit:
+			if (
+				doc.docstatus.is_submitted()
+				and not doc.meta.get_field(self.set_property_after_alert).allow_on_submit
+			):
 				allow_update = False
 			try:
 				if allow_update and not doc.flags.in_notification_update:
@@ -171,7 +167,7 @@ def get_context(context):
 					doc.save(ignore_permissions=True)
 					doc.flags.in_notification_update = False
 			except Exception:
-				frappe.log_error(title="Document update failed", message=frappe.get_traceback())
+				self.log_error("Document update failed")
 
 	def create_system_notification(self, doc, context):
 		subject = self.subject
@@ -371,7 +367,7 @@ def get_context(context):
 			template = ""
 			template_path = os.path.join(os.path.dirname(module.__file__), frappe.scrub(self.name) + extn)
 			if os.path.exists(template_path):
-				with open(template_path, "r") as f:
+				with open(template_path) as f:
 					template = f.read()
 			return template
 
@@ -390,6 +386,9 @@ def get_context(context):
 
 		if not is_html(self.message):
 			self.message = frappe.utils.md_to_html(self.message)
+
+	def on_trash(self):
+		frappe.cache().hdel("notifications", self.document_type)
 
 
 @frappe.whitelist()
@@ -424,7 +423,7 @@ def evaluate_alert(doc: Document, alert, event):
 	from jinja2 import TemplateError
 
 	try:
-		if isinstance(alert, string_types):
+		if isinstance(alert, str):
 			alert = frappe.get_doc("Notification", alert)
 
 		context = get_context(doc)
@@ -436,7 +435,7 @@ def evaluate_alert(doc: Document, alert, event):
 		if event == "Value Change" and not doc.is_new():
 			if not frappe.db.has_column(doc.doctype, alert.value_changed):
 				alert.db_set("enabled", 0)
-				frappe.log_error("Notification {0} has been disabled due to missing field".format(alert.name))
+				alert.log_error(f"Notification {alert.name} has been disabled due to missing field")
 				return
 
 			doc_before_save = doc.get_doc_before_save()
@@ -478,9 +477,9 @@ def get_assignees(doc):
 	assignees = frappe.get_all(
 		"ToDo",
 		filters={"status": "Open", "reference_name": doc.name, "reference_type": doc.doctype},
-		fields=["owner"],
+		fields=["allocated_to"],
 	)
 
-	recipients = [d.owner for d in assignees]
+	recipients = [d.allocated_to for d in assignees]
 
 	return recipients

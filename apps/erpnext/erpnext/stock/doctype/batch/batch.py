@@ -9,7 +9,6 @@ from frappe.model.naming import make_autoname, revert_series_if_last
 from frappe.utils import cint, flt, get_link_to_form
 from frappe.utils.data import add_days
 from frappe.utils.jinja import render_template
-from six import text_type
 
 
 class UnableToSelectBatchError(frappe.ValidationError):
@@ -62,7 +61,7 @@ def _make_naming_series_key(prefix):
 	:param prefix: Naming series prefix gotten from Stock Settings
 	:return: The derived key. If no prefix is given, an empty string is returned
 	"""
-	if not text_type(prefix):
+	if not str(prefix):
 		return ""
 	else:
 		return prefix.upper() + ".#####"
@@ -121,10 +120,17 @@ class Batch(Document):
 
 	def validate(self):
 		self.item_has_batch_enabled()
+		self.set_batchwise_valuation()
 
 	def item_has_batch_enabled(self):
 		if frappe.db.get_value("Item", self.item, "has_batch_no") == 0:
 			frappe.throw(_("The selected item cannot have Batch"))
+
+	def set_batchwise_valuation(self):
+		from erpnext.stock.stock_ledger import get_valuation_method
+
+		if self.is_new() and get_valuation_method(self.item) != "Moving Average":
+			self.use_batchwise_valuation = 1
 
 	def before_save(self):
 		has_expiry_date, shelf_life_in_days = frappe.db.get_value(
@@ -329,7 +335,7 @@ def get_batches(item_code, warehouse, qty=1, throw=False, serial_no=None):
 				on (`tabBatch`.batch_id = `tabStock Ledger Entry`.batch_no )
 		where `tabStock Ledger Entry`.item_code = %s and `tabStock Ledger Entry`.warehouse = %s
 			and `tabStock Ledger Entry`.is_cancelled = 0
-			and (`tabBatch`.expiry_date >= CURDATE() or `tabBatch`.expiry_date IS NULL) {0}
+			and (`tabBatch`.expiry_date >= CURRENT_DATE or `tabBatch`.expiry_date IS NULL) {0}
 		group by batch_id
 		order by `tabBatch`.expiry_date ASC, `tabBatch`.creation ASC
 	""".format(
@@ -364,14 +370,12 @@ def make_batch(args):
 def get_pos_reserved_batch_qty(filters):
 	import json
 
-	from frappe.query_builder.functions import Sum
-
 	if isinstance(filters, str):
 		filters = json.loads(filters)
 
 	p = frappe.qb.DocType("POS Invoice").as_("p")
 	item = frappe.qb.DocType("POS Invoice Item").as_("item")
-	sum_qty = Sum(item.qty).as_("qty")
+	sum_qty = frappe.query_builder.functions.Sum(item.qty).as_("qty")
 
 	reserved_batch_qty = (
 		frappe.qb.from_(p)

@@ -1,23 +1,21 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 """Use blog post test to test user permissions logic"""
 
 import json
-import unittest
 
 import frappe
 import frappe.defaults
 from frappe.desk.doctype.event.event import get_events
 from frappe.test_runner import make_test_objects
+from frappe.tests.utils import FrappeTestCase
 
 test_records = frappe.get_test_records("Event")
 
 
-class TestEvent(unittest.TestCase):
+class TestEvent(FrappeTestCase):
 	def setUp(self):
-		frappe.db.sql("delete from tabEvent")
+		frappe.db.delete("Event")
 		make_test_objects("Event", reset=True)
 
 		self.test_records = frappe.get_test_records("Event")
@@ -98,11 +96,12 @@ class TestEvent(unittest.TestCase):
 
 		ev = frappe.get_doc("Event", ev.name)
 
-		self.assertEqual(set(json.loads(ev._assign)), set(["test@example.com", self.test_user]))
+		self.assertEqual(set(json.loads(ev._assign)), {"test@example.com", self.test_user})
 
 		# Remove an assignment
 		todo = frappe.get_doc(
-			"ToDo", {"reference_type": ev.doctype, "reference_name": ev.name, "owner": self.test_user}
+			"ToDo",
+			{"reference_type": ev.doctype, "reference_name": ev.name, "allocated_to": self.test_user},
 		)
 		todo.status = "Cancelled"
 		todo.save()

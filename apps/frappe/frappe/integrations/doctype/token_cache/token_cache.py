@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
+# License: MIT. See LICENSE
 
-from __future__ import unicode_literals
-
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import frappe
 from frappe import _
@@ -53,8 +50,8 @@ class TokenCache(Document):
 		return self
 
 	def get_expires_in(self):
-		expiry_time = frappe.utils.get_datetime(self.modified) + timedelta(seconds=self.expires_in)
-		return (expiry_time - frappe.utils.now_datetime()).total_seconds()
+		expiry_time = frappe.utils.get_datetime(self.modified) + timedelta(self.expires_in)
+		return (datetime.now() - expiry_time).total_seconds()
 
 	def is_expired(self):
 		return self.get_expires_in() < 0

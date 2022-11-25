@@ -1,31 +1,33 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 from werkzeug.wrappers import Response
 
 import frappe
 from frappe.app import process_response
+from frappe.tests.utils import FrappeTestCase
 
 HEADERS = (
 	"Access-Control-Allow-Origin",
 	"Access-Control-Allow-Credentials",
 	"Access-Control-Allow-Methods",
 	"Access-Control-Allow-Headers",
+	"Vary",
 )
 
 
-class TestCORS(unittest.TestCase):
+class TestCORS(FrappeTestCase):
 	def make_request_and_test(self, origin="http://example.com", absent=False):
 		self.origin = origin
 
 		headers = {}
 		if origin:
-			headers = {"Origin": origin}
+			headers = {
+				"Origin": origin,
+				"Access-Control-Request-Method": "POST",
+				"Access-Control-Request-Headers": "X-Test-Header",
+			}
 
-		frappe.utils.set_request(headers=headers)
+		frappe.utils.set_request(method="OPTIONS", headers=headers)
 
 		self.response = Response()
 		process_response(self.response)

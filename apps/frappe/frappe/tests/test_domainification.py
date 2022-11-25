@@ -1,9 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
 from frappe.core.doctype.domain_settings.domain_settings import get_active_modules
 from frappe.core.page.permission_manager.permission_manager import get_roles_and_doctypes
@@ -12,9 +8,10 @@ from frappe.desk.doctype.desktop_icon.desktop_icon import (
 	clear_desktop_icons_cache,
 	get_desktop_icons,
 )
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestDomainification(unittest.TestCase):
+class TestDomainification(FrappeTestCase):
 	def setUp(self):
 		# create test domain
 		self.new_domain("_Test Domain 1")
@@ -24,9 +21,9 @@ class TestDomainification(unittest.TestCase):
 		self.add_active_domain("_Test Domain 1")
 
 	def tearDown(self):
-		frappe.db.sql("delete from tabRole where name='_Test Role'")
-		frappe.db.sql("delete from `tabHas Role` where role='_Test Role'")
-		frappe.db.sql("delete from tabDomain where name in ('_Test Domain 1', '_Test Domain 2')")
+		frappe.db.delete("Role", {"name": "_Test Role"})
+		frappe.db.delete("Has Role", {"role": "_Test Role"})
+		frappe.db.delete("Domain", {"name": ("in", ("_Test Domain 1", "_Test Domain 2"))})
 		frappe.delete_doc("DocType", "Test Domainification")
 		self.remove_from_active_domains(remove_all=True)
 

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import json
 
 import frappe
@@ -15,7 +13,7 @@ def execute():
 		# get user_settings for each user
 		settings = frappe.db.sql(
 			"select * from `__UserSettings` \
-			where user={0}".format(
+			where user={}".format(
 				frappe.db.escape(user.user)
 			),
 			as_dict=True,

@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import json
 
@@ -54,7 +51,7 @@ class EnergyPointLog(Document):
 				"document_name": self.reference_name,
 				"subject": get_notification_message(self),
 				"from_user": reference_user,
-				"email_content": "<div>{}</div>".format(self.reason) if self.reason else None,
+				"email_content": f"<div>{self.reason}</div>" if self.reason else None,
 			}
 
 			enqueue_create_notification(self.user, notification_doc)
@@ -181,7 +178,7 @@ def create_energy_points_log(ref_doctype, ref_name, doc, apply_only_once=False):
 	)
 
 	if log_exists:
-		return
+		return frappe.get_doc("Energy Point Log", log_exists)
 
 	new_log = frappe.new_doc("Energy Point Log")
 	new_log.reference_doctype = ref_doctype
@@ -363,7 +360,7 @@ def send_summary(timespan):
 	]
 
 	frappe.sendmail(
-		subject="{} energy points summary".format(timespan),
+		subject=f"{timespan} energy points summary",
 		recipients=all_users,
 		template="energy_points_summary",
 		args={

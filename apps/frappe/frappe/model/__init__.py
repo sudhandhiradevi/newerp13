@@ -1,9 +1,7 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
 # model __init__.py
-from __future__ import unicode_literals
-
 import frappe
 
 data_fieldtypes = (
@@ -38,11 +36,23 @@ data_fieldtypes = (
 	"Geolocation",
 	"Duration",
 	"Icon",
+	"Phone",
+	"Autocomplete",
+	"JSON",
+)
+
+float_like_fields = {"Float", "Currency", "Percent"}
+datetime_fields = {"Datetime", "Date", "Time"}
+
+attachment_fieldtypes = (
+	"Attach",
+	"Attach Image",
 )
 
 no_value_fields = (
 	"Section Break",
 	"Column Break",
+	"Tab Break",
 	"HTML",
 	"Table",
 	"Table MultiSelect",
@@ -55,6 +65,7 @@ no_value_fields = (
 display_fieldtypes = (
 	"Section Break",
 	"Column Break",
+	"Tab Break",
 	"HTML",
 	"Button",
 	"Image",
@@ -73,12 +84,11 @@ default_fields = (
 	"creation",
 	"modified",
 	"modified_by",
-	"parent",
-	"parentfield",
-	"parenttype",
-	"idx",
 	"docstatus",
+	"idx",
 )
+
+child_table_fields = ("parent", "parentfield", "parenttype")
 
 optional_fields = ("_user_tags", "_comments", "_assign", "_liked_by", "_seen")
 
@@ -137,12 +147,12 @@ def delete_fields(args_dict, delete=0):
 		if not fields:
 			continue
 
-		frappe.db.sql(
-			"""
-			DELETE FROM `tabDocField`
-			WHERE parent='%s' AND fieldname IN (%s)
-		"""
-			% (dt, ", ".join(["'{}'".format(f) for f in fields]))
+		frappe.db.delete(
+			"DocField",
+			{
+				"parent": dt,
+				"fieldname": ("in", fields),
+			},
 		)
 
 		# Delete the data/column only if delete is specified
@@ -150,12 +160,12 @@ def delete_fields(args_dict, delete=0):
 			continue
 
 		if frappe.db.get_value("DocType", dt, "issingle"):
-			frappe.db.sql(
-				"""
-				DELETE FROM `tabSingles`
-				WHERE doctype='%s' AND field IN (%s)
-			"""
-				% (dt, ", ".join(["'{}'".format(f) for f in fields]))
+			frappe.db.delete(
+				"Singles",
+				{
+					"doctype": dt,
+					"field": ("in", fields),
+				},
 			)
 		else:
 			existing_fields = frappe.db.describe(dt)
@@ -169,7 +179,7 @@ def delete_fields(args_dict, delete=0):
 				frappe.db.commit()
 
 			query = "ALTER TABLE `tab%s` " % dt + ", ".join(
-				["DROP COLUMN `%s`" % f for f in fields_need_to_delete]
+				"DROP COLUMN `%s`" % f for f in fields_need_to_delete
 			)
 			frappe.db.sql(query)
 

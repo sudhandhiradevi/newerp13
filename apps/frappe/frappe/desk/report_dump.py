@@ -1,12 +1,9 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
+# License: MIT. See LICENSE
 
-from __future__ import unicode_literals
 
 import copy
 import json
-
-from six.moves import range
 
 import frappe
 
@@ -56,7 +53,7 @@ def get_data(doctypes, last_modified):
 		out[dt]["data"] = [
 			list(t)
 			for t in frappe.db.sql(
-				"""select %s from %s %s %s""" % (",".join(args["columns"]), table, conditions, order_by)
+				"""select {} from {} {} {}""".format(",".join(args["columns"]), table, conditions, order_by)
 			)
 		]
 

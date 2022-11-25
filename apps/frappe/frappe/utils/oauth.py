@@ -1,13 +1,10 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import base64
 import json
 
 import jwt
-from six import string_types
 
 import frappe
 import frappe.utils
@@ -50,7 +47,7 @@ def get_oauth_keys(provider):
 	"""get client_id and client_secret from database or conf"""
 
 	# try conf
-	keys = frappe.conf.get("{provider}_login".format(provider=provider))
+	keys = frappe.conf.get(f"{provider}_login")
 
 	if not keys:
 		# try database
@@ -103,7 +100,7 @@ def get_oauth2_flow(provider):
 
 
 def get_redirect_uri(provider):
-	keys = frappe.conf.get("{provider}_login".format(provider=provider))
+	keys = frappe.conf.get(f"{provider}_login")
 
 	if keys and keys.get("redirect_uri"):
 		# this should be a fully qualified redirect uri
@@ -150,11 +147,17 @@ def get_info_via_oauth(provider, code, decoder=None, id_token=False):
 
 		token = parsed_access["id_token"]
 
-		info = jwt.decode(token, flow.client_secret, verify=False)
+		info = jwt.decode(token, flow.client_secret, options={"verify_signature": False})
 	else:
 		api_endpoint = oauth2_providers[provider].get("api_endpoint")
 		api_endpoint_args = oauth2_providers[provider].get("api_endpoint_args")
+
 		info = session.get(api_endpoint, params=api_endpoint_args).json()
+
+		if provider == "github" and not info.get("email"):
+			emails = session.get("/user/emails", params=api_endpoint_args).json()
+			email_dict = list(filter(lambda x: x.get("primary"), emails))[0]
+			info["email"] = email_dict.get("email")
 
 	if not (info.get("email_verified") or info.get("email")):
 		frappe.throw(_("Email not verified with {0}").format(provider.title()))
@@ -180,10 +183,10 @@ def login_oauth_user(
 	# 	return
 
 	# json.loads data and state
-	if isinstance(data, string_types):
+	if isinstance(data, str):
 		data = json.loads(data)
 
-	if isinstance(state, string_types):
+	if isinstance(state, str):
 		state = base64.b64decode(state)
 		state = json.loads(state.decode("utf-8"))
 
@@ -220,7 +223,7 @@ def login_oauth_user(
 	if frappe.utils.cint(generate_login_token):
 		login_token = frappe.generate_hash(length=32)
 		frappe.cache().set_value(
-			"login_token:{0}".format(login_token), frappe.local.session.sid, expires_in_sec=120
+			f"login_token:{login_token}", frappe.local.session.sid, expires_in_sec=120
 		)
 
 		frappe.response["login_token"] = login_token
@@ -263,7 +266,7 @@ def update_oauth_user(user, data, provider):
 				"email": get_email(data),
 				"gender": gender,
 				"enabled": 1,
-				"new_password": frappe.generate_hash(get_email(data)),
+				"new_password": frappe.generate_hash(),
 				"location": data.get("location"),
 				"user_type": "Website User",
 				"user_image": data.get("picture") or data.get("avatar_url"),

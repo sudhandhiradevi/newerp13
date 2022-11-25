@@ -1,11 +1,11 @@
 import types
-import unittest
 
 import frappe
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils.safe_exec import get_safe_globals, safe_exec
 
 
-class TestSafeExec(unittest.TestCase):
+class TestSafeExec(FrappeTestCase):
 	def test_import_fails(self):
 		self.assertRaises(ImportError, safe_exec, "import os")
 
@@ -30,6 +30,20 @@ class TestSafeExec(unittest.TestCase):
 
 		self.assertRaises(
 			frappe.PermissionError, safe_exec, 'frappe.db.sql("update tabToDo set description=NULL")'
+		)
+
+	def test_query_builder(self):
+		_locals = dict(out=None)
+		safe_exec(
+			script="""out = frappe.qb.from_("User").select(frappe.qb.terms.PseudoColumn("Max(name)")).run()""",
+			_globals=None,
+			_locals=_locals,
+		)
+		self.assertEqual(frappe.db.sql("SELECT Max(name) FROM tabUser"), _locals["out"])
+
+	def test_safe_query_builder(self):
+		self.assertRaises(
+			frappe.PermissionError, safe_exec, """frappe.qb.from_("User").delete().run()"""
 		)
 
 	def test_call(self):

@@ -1,8 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import print_function, unicode_literals
-
+# License: MIT. See LICENSE
 """
 	Utilities for using modules
 """
@@ -59,6 +56,7 @@ def export_customizations(module, doctype, sync_on_migrate=0, with_permissions=0
 		"custom_fields": [],
 		"property_setters": [],
 		"custom_perms": [],
+		"links": [],
 		"doctype": doctype,
 		"sync_on_migrate": sync_on_migrate,
 	}
@@ -68,6 +66,7 @@ def export_customizations(module, doctype, sync_on_migrate=0, with_permissions=0
 		custom["property_setters"] += frappe.get_all(
 			"Property Setter", fields="*", filters={"doc_type": _doctype}
 		)
+		custom["links"] += frappe.get_all("DocType Link", fields="*", filters={"parent": _doctype})
 
 	add(doctype)
 
@@ -106,7 +105,7 @@ def sync_customizations(app=None):
 			if os.path.exists(folder):
 				for fname in os.listdir(folder):
 					if fname.endswith(".json"):
-						with open(os.path.join(folder, fname), "r") as f:
+						with open(os.path.join(folder, fname)) as f:
 							data = json.loads(f.read())
 						if data.get("sync_on_migrate"):
 							sync_customizations_for_doctype(data, folder)
@@ -131,9 +130,7 @@ def sync_customizations_for_doctype(data, folder):
 					doc.db_insert()
 
 			if custom_doctype != "Custom Field":
-				frappe.db.sql(
-					"delete from `tab{0}` where `{1}` =%s".format(custom_doctype, doctype_fieldname), doc_type
-				)
+				frappe.db.delete(custom_doctype, {doctype_fieldname: doc_type})
 
 				for d in data[key]:
 					_insert(d)
@@ -167,7 +164,7 @@ def sync_customizations_for_doctype(data, folder):
 	if data.get("custom_perms"):
 		sync("custom_perms", "Custom DocPerm", "parent")
 
-	print("Updating customizations for {0}".format(doctype))
+	print(f"Updating customizations for {doctype}")
 	validate_fields_for_doctype(doctype)
 
 	if update_schema and not frappe.db.get_value("DocType", doctype, "issingle"):
@@ -210,13 +207,18 @@ def export_doc(doctype, name, module=None):
 	write_document_file(frappe.get_doc(doctype, name), module)
 
 
-def get_doctype_module(doctype):
+def get_doctype_module(doctype) -> str:
 	"""Returns **Module Def** name of given doctype."""
 
 	def make_modules_dict():
 		return dict(frappe.db.sql("select name, module from tabDocType"))
 
-	return frappe.cache().get_value("doctype_modules", make_modules_dict)[doctype]
+	doctype_module_map = frappe.cache().get_value("doctype_modules", make_modules_dict)
+
+	if module_name := doctype_module_map.get(doctype):
+		return module_name
+	else:
+		frappe.throw(_("DocType {} not found").format(doctype), exc=frappe.DoesNotExistError)
 
 
 doctype_python_modules = {}
@@ -237,9 +239,9 @@ def load_doctype_module(doctype, module=None, prefix="", suffix=""):
 		if key not in doctype_python_modules:
 			doctype_python_modules[key] = frappe.get_module(module_name)
 	except ImportError as e:
-		raise ImportError(
-			"Module import failed for {0} ({1})".format(doctype, module_name + " Error: " + str(e))
-		)
+		msg = f"Module import failed for {doctype}, the DocType you're trying to open might be deleted."
+		msg += f"<br> Error: {e}"
+		raise ImportError(msg) from e
 
 	return doctype_python_modules[key]
 
@@ -254,12 +256,15 @@ def get_module_name(doctype, module, prefix="", suffix="", app=None):
 	)
 
 
-def get_module_app(module):
-	return frappe.local.module_app[scrub(module)]
+def get_module_app(module: str) -> str:
+	app = frappe.local.module_app.get(scrub(module))
+	if app is None:
+		frappe.throw(_("Module {} not found").format(module), exc=frappe.DoesNotExistError)
+	return app
 
 
-def get_app_publisher(module):
-	app = frappe.local.module_app[scrub(module)]
+def get_app_publisher(module: str) -> str:
+	app = get_module_app(module)
 	if not app:
 		frappe.throw(_("App not found"))
 	app_publisher = frappe.get_hooks(hook="app_publisher", app_name=app)[0]
@@ -291,40 +296,42 @@ def make_boilerplate(template, doc, opts=None):
 		custom_controller = "pass"
 		if doc.get("is_virtual"):
 			custom_controller = """
-	def db_insert(self):
+	def db_insert(self, *args, **kwargs):
 		pass
 
 	def load_from_db(self):
 		pass
 
-	def db_update(self):
+	def db_update(self, *args, **kwargs):
 		pass
 
-	def get_list(self, args):
+	@staticmethod
+	def get_list(args):
 		pass
 
-	def get_count(self, args):
+	@staticmethod
+	def get_count(args):
 		pass
 
-	def get_stats(self, args):
+	@staticmethod
+	def get_stats(args):
 		pass"""
 
 		with open(target_file_path, "w") as target:
 			with open(
 				os.path.join(get_module_path("core"), "doctype", scrub(doc.doctype), "boilerplate", template),
-				"r",
 			) as source:
 				target.write(
 					frappe.as_unicode(
 						frappe.utils.cstr(source.read()).format(
 							app_publisher=app_publisher,
 							year=frappe.utils.nowdate()[:4],
-							classname=doc.name.replace(" ", ""),
+							classname=doc.name.replace(" ", "").replace("-", ""),
 							base_class_import=base_class_import,
 							base_class=base_class,
 							doctype=doc.name,
 							**opts,
-							custom_controller=custom_controller
+							custom_controller=custom_controller,
 						)
 					)
 				)

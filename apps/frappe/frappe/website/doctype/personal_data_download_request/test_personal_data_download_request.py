@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import json
 
 import frappe
@@ -19,7 +16,7 @@ class TestRequestPersonalData(FrappeTestCase):
 		create_user_if_not_exists(email="test_privacy@example.com")
 
 	def tearDown(self):
-		frappe.db.sql("""DELETE FROM `tabPersonal Data Download Request`""")
+		frappe.db.delete("Personal Data Download Request")
 
 	def test_user_data_creation(self):
 		user_data = json.loads(get_user_data("test_privacy@example.com"))
@@ -52,7 +49,7 @@ class TestRequestPersonalData(FrappeTestCase):
 		)
 		self.assertIn(frappe._("Download Your Data"), email_queue[0].message)
 
-		frappe.db.sql("delete from `tabEmail Queue`")
+		frappe.db.delete("Email Queue")
 
 
 def create_user_if_not_exists(email, first_name=None):

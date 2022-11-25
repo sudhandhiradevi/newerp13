@@ -15,6 +15,7 @@
   "add_to_transit",
   "work_order",
   "purchase_order",
+  "subcontracting_order",
   "delivery_note_no",
   "sales_invoice_no",
   "pick_list",
@@ -152,6 +153,13 @@
    "fieldtype": "Link",
    "label": "Purchase Order",
    "options": "Purchase Order"
+  },
+  {
+   "depends_on": "eval:doc.purpose==\"Send to Subcontractor\"",
+   "fieldname": "subcontracting_order",
+   "fieldtype": "Link",
+   "label": "Subcontracting Order",
+   "options": "Subcontracting Order"
   },
   {
    "depends_on": "eval:doc.purpose==\"Sales Return\"",
@@ -608,6 +616,7 @@
    "fieldname": "is_return",
    "fieldtype": "Check",
    "hidden": 1,
+   "in_list_view": 1,
    "label": "Is Return",
    "no_copy": 1,
    "print_hide": 1,
@@ -619,7 +628,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-05-02 05:21:39.060501",
+ "modified": "2022-10-07 14:39:51.943770",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Stock Entry",

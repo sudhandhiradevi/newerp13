@@ -59,7 +59,36 @@ frappe.ui.form.on("Sales Order", {
 				})
 			});
 		}
+
+		if (frm.doc.docstatus === 0 && frm.doc.is_internal_customer) {
+			frm.events.get_items_from_internal_purchase_order(frm);
+		}
 	},
+
+	get_items_from_internal_purchase_order(frm) {
+		frm.add_custom_button(__('Purchase Order'), () => {
+			erpnext.utils.map_current_doc({
+				method: 'erpnext.buying.doctype.purchase_order.purchase_order.make_inter_company_sales_order',
+				source_doctype: 'Purchase Order',
+				target: frm,
+				setters: [
+					{
+						label: 'Supplier',
+						fieldname: 'supplier',
+						fieldtype: 'Link',
+						options: 'Supplier'
+					}
+				],
+				get_query_filters: {
+					company: frm.doc.company,
+					is_internal_supplier: 1,
+					docstatus: 1,
+					status: ['!=', 'Completed']
+				}
+			});
+		}, __('Get Items From'));
+	},
+
 	onload: function(frm) {
 		if (!frm.doc.transaction_date){
 			frm.set_value('transaction_date', frappe.datetime.get_today())
@@ -128,14 +157,14 @@ frappe.ui.form.on("Sales Order Item", {
 	}
 });
 
-erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend({
-	onload: function(doc, dt, dn) {
-		this._super();
-	},
+erpnext.selling.SalesOrderController = class SalesOrderController extends erpnext.selling.SellingController {
+	onload(doc, dt, dn) {
+		super.onload(doc, dt, dn);
+	}
 
-	refresh: function(doc, dt, dn) {
+	refresh(doc, dt, dn) {
 		var me = this;
-		this._super();
+		super.refresh();
 		let allow_delivery = false;
 
 		if (doc.docstatus==1) {
@@ -269,14 +298,14 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 		}
 
 		this.order_type(doc);
-	},
+	}
 
 	create_pick_list() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.create_pick_list",
 			frm: this.frm
 		})
-	},
+	}
 
 	make_work_order() {
 		var me = this;
@@ -371,33 +400,33 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 				}
 			}
 		});
-	},
+	}
 
-	order_type: function() {
+	order_type() {
 		this.toggle_delivery_date();
-	},
+	}
 
-	tc_name: function() {
+	tc_name() {
 		this.get_terms();
-	},
+	}
 
-	make_material_request: function() {
+	make_material_request() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_material_request",
 			frm: this.frm
 		})
-	},
+	}
 
-	skip_delivery_note: function() {
+	skip_delivery_note() {
 		this.toggle_delivery_date();
-	},
+	}
 
-	toggle_delivery_date: function() {
+	toggle_delivery_date() {
 		this.frm.fields_dict.items.grid.toggle_reqd("delivery_date",
 			(this.frm.doc.order_type == "Sales" && !this.frm.doc.skip_delivery_note));
-	},
+	}
 
-	make_raw_material_request: function() {
+	make_raw_material_request() {
 		var me = this;
 		this.frm.call({
 			doc: this.frm.doc,
@@ -418,9 +447,9 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 				}
 			}
 		});
-	},
+	}
 
-	make_raw_material_request_dialog: function(r) {
+	make_raw_material_request_dialog(r) {
 		var fields = [
 			{fieldtype:'Check', fieldname:'include_exploded_items',
 				label: __('Include Exploded Items')},
@@ -475,9 +504,9 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 			primary_action_label: __('Create')
 		});
 		d.show();
-	},
+	}
 
-	make_delivery_note_based_on_delivery_date: function() {
+	make_delivery_note_based_on_delivery_date() {
 		var me = this;
 
 		var delivery_dates = this.frm.doc.items.map(i => i.delivery_date);
@@ -526,9 +555,9 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 		} else {
 			this.make_delivery_note();
 		}
-	},
+	}
 
-	make_delivery_note: function(delivery_dates) {
+	make_delivery_note(delivery_dates) {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_delivery_note",
 			frm: this.frm,
@@ -536,44 +565,44 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 				delivery_dates
 			}
 		})
-	},
+	}
 
-	make_sales_invoice: function() {
+	make_sales_invoice() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice",
 			frm: this.frm
 		})
-	},
+	}
 
-	make_maintenance_schedule: function() {
+	make_maintenance_schedule() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_maintenance_schedule",
 			frm: this.frm
 		})
-	},
+	}
 
-	make_project: function() {
+	make_project() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_project",
 			frm: this.frm
 		})
-	},
+	}
 
-	make_inter_company_order: function() {
+	make_inter_company_order() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_inter_company_purchase_order",
 			frm: this.frm
 		});
-	},
+	}
 
-	make_maintenance_visit: function() {
+	make_maintenance_visit() {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_maintenance_visit",
 			frm: this.frm
 		})
-	},
+	}
 
-	make_purchase_order: function(){
+	make_purchase_order(){
 		let pending_items = this.frm.doc.items.some((item) =>{
 			let pending_qty = flt(item.stock_qty) - flt(item.ordered_qty);
 			return pending_qty > 0;
@@ -712,9 +741,9 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 		dialog.get_field("items_for_po").refresh();
 		dialog.wrapper.find('.grid-heading-row .grid-row-check').click();
 		dialog.show();
-	},
+	}
 
-	get_ordered_qty: function(item, so) {
+	get_ordered_qty(item, so) {
 		let ordered_qty = item.ordered_qty;
 		if (so.packed_items && so.packed_items.length) {
 			// calculate ordered qty based on packed items in case of product bundle
@@ -730,9 +759,9 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 			}
 		}
 		return ordered_qty;
-	},
+	}
 
-	hold_sales_order: function(){
+	hold_sales_order(){
 		var me = this;
 		var d = new frappe.ui.Dialog({
 			title: __('Reason for Hold'),
@@ -750,7 +779,7 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 					args: {
 						reference_doctype: me.frm.doctype,
 						reference_name: me.frm.docname,
-						content: __('Reason for hold: ')+data.reason_for_hold,
+						content: __('Reason for hold:') + ' ' + data.reason_for_hold,
 						comment_email: frappe.session.user,
 						comment_by: frappe.session.user_fullname
 					},
@@ -764,11 +793,11 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 			}
 		});
 		d.show();
-	},
-	close_sales_order: function(){
+	}
+	close_sales_order(){
 		this.frm.cscript.update_status("Close", "Closed")
-	},
-	update_status: function(label, status){
+	}
+	update_status(label, status){
 		var doc = this.frm.doc;
 		var me = this;
 		frappe.ui.form.is_saving = true;
@@ -783,5 +812,6 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 			}
 		});
 	}
-});
-$.extend(cur_frm.cscript, new erpnext.selling.SalesOrderController({frm: cur_frm}));
+};
+
+extend_cscript(cur_frm.cscript, new erpnext.selling.SalesOrderController({frm: cur_frm}));

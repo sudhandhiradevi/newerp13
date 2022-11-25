@@ -59,3 +59,133 @@
 2022-11-25 14:31:14,357 INFO /usr/local/bin/bench watch
 2022-11-25 14:31:14,390 INFO /usr/local/bin/bench worker --queue short
 2022-11-25 14:31:14,479 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 14:54:39,625 INFO /usr/local/bin/bench switch-to-branch version-14 frappe erpnext
+2022-11-25 14:54:43,543 WARNING /usr/local/bin/bench switch-to-branch version-14 frappe erpnext executed with exit code 1
+2022-11-25 14:55:21,102 INFO /usr/local/bin/bench update
+2022-11-25 14:55:22,778 WARNING /usr/local/bin/bench update executed with exit code 1
+2022-11-25 14:59:37,796 INFO /usr/local/bin/bench update
+2022-11-25 14:59:41,829 WARNING shallow_clone is set in your bench config.
+However without passing the --reset flag, your repositories will be unshallowed.
+To avoid this, cancel this operation and run `bench update --reset`.
+
+Consider the consequences of `git reset --hard` on your apps before you run that.
+To avoid seeing this warning, set shallow_clone to false in your common_site_config.json
+		
+2022-11-25 15:00:04,269 WARNING /usr/local/bin/bench update executed with exit code 1
+2022-11-25 15:00:14,633 INFO /usr/local/bin/bench switch-to-branch version-14 frappe erpnext
+2022-11-25 15:00:15,543 INFO Fetching upstream unshallow for frappe
+2022-11-25 15:00:15,543 DEBUG cd ./apps/frappe && git remote set-branches upstream  '*'
+2022-11-25 15:00:15,546 DEBUG cd ./apps/frappe && git fetch --all --unshallow --quiet
+2022-11-25 15:01:35,403 ERROR Switching to version-14 will cause upgrade from 13 to 14. Pass --upgrade to confirm
+2022-11-25 15:01:35,403 WARNING /usr/local/bin/bench switch-to-branch version-14 frappe erpnext executed with exit code 1
+2022-11-25 15:02:01,801 INFO /usr/local/bin/bench version
+2022-11-25 15:03:34,897 INFO /usr/local/bin/bench switch-to-branch version-14 frappe erpnext --upgrade
+2022-11-25 15:03:35,883 INFO Fetching upstream unshallow for frappe
+2022-11-25 15:03:35,883 DEBUG cd ./apps/frappe && git remote set-branches upstream  '*'
+2022-11-25 15:03:35,885 DEBUG cd ./apps/frappe && git fetch --all --unshallow --quiet
+2022-11-25 15:03:40,464 DEBUG cd ./apps/frappe && git checkout -f version-14
+2022-11-25 15:03:42,186 INFO Fetching upstream unshallow for erpnext
+2022-11-25 15:03:42,187 DEBUG cd ./apps/erpnext && git remote set-branches upstream  '*'
+2022-11-25 15:03:42,229 DEBUG cd ./apps/erpnext && git fetch --all --unshallow --quiet
+2022-11-25 15:14:31,573 WARNING /usr/local/bin/bench switch-to-branch version-14 frappe erpnext --upgrade executed with exit code 1
+2022-11-25 15:14:51,340 INFO /usr/local/bin/bench version
+2022-11-25 15:14:57,331 INFO /usr/local/bin/bench switch-to-branch version-14 frappe erpnext --upgrade
+2022-11-25 15:14:58,125 INFO Fetching upstream unshallow for frappe
+2022-11-25 15:14:58,125 DEBUG cd ./apps/frappe && git remote set-branches upstream  '*'
+2022-11-25 15:14:58,128 DEBUG cd ./apps/frappe && git fetch --all --unshallow --quiet
+2022-11-25 15:15:00,841 DEBUG cd ./apps/frappe && git checkout -f version-14
+2022-11-25 15:15:00,860 INFO Fetching upstream unshallow for erpnext
+2022-11-25 15:15:00,860 DEBUG cd ./apps/erpnext && git remote set-branches upstream  '*'
+2022-11-25 15:15:00,863 DEBUG cd ./apps/erpnext && git fetch --all --unshallow --quiet
+2022-11-25 15:18:22,409 DEBUG cd ./apps/erpnext && git checkout -f version-14
+2022-11-25 15:18:23,233 INFO Successfully switched branches for: frappe, erpnext
+2022-11-25 15:18:23,233 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade pip
+2022-11-25 15:18:25,490 LOG Installing frappe
+2022-11-25 15:18:25,490 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/frappe 
+2022-11-25 15:19:06,552 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && yarn install
+2022-11-25 15:20:26,341 LOG Installing erpnext
+2022-11-25 15:20:26,342 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/erpnext 
+2022-11-25 15:20:33,755 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && yarn install
+2022-11-25 15:20:35,191 LOG Installing payments
+2022-11-25 15:20:35,221 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/payments 
+2022-11-25 15:20:53,482 WARNING /usr/local/bin/bench switch-to-branch version-14 frappe erpnext --upgrade executed with exit code 1
+2022-11-25 15:21:13,830 INFO /usr/local/bin/bench version
+2022-11-25 15:22:21,710 INFO /usr/local/bin/bench update --patch
+2022-11-25 15:22:25,695 WARNING shallow_clone is set in your bench config.
+However without passing the --reset flag, your repositories will be unshallowed.
+To avoid this, cancel this operation and run `bench update --reset`.
+
+Consider the consequences of `git reset --hard` on your apps before you run that.
+To avoid seeing this warning, set shallow_clone to false in your common_site_config.json
+		
+2022-11-25 15:22:40,408 WARNING /usr/local/bin/bench update --patch executed with exit code 1
+2022-11-25 15:22:46,742 INFO /usr/local/bin/bench start
+2022-11-25 15:22:48,839 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 15:22:49,062 INFO /usr/local/bin/bench worker --queue short
+2022-11-25 15:22:49,091 INFO /usr/local/bin/bench serve --port 8004
+2022-11-25 15:22:49,094 INFO /usr/local/bin/bench schedule
+2022-11-25 15:22:49,220 INFO /usr/local/bin/bench watch
+2022-11-25 15:22:49,247 INFO /usr/local/bin/bench worker --queue long
+2022-11-25 15:24:52,128 INFO /usr/local/bin/bench --site dcodeerp13.com set-config maintenance_mode 0
+2022-11-25 15:24:56,172 INFO /usr/local/bin/bench start
+2022-11-25 15:24:58,572 INFO /usr/local/bin/bench watch
+2022-11-25 15:24:58,580 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 15:24:58,680 INFO /usr/local/bin/bench serve --port 8004
+2022-11-25 15:24:58,733 INFO /usr/local/bin/bench worker --queue short
+2022-11-25 15:24:58,780 INFO /usr/local/bin/bench schedule
+2022-11-25 15:24:58,798 INFO /usr/local/bin/bench worker --queue long
+2022-11-25 15:26:57,648 INFO /usr/local/bin/bench start
+2022-11-25 15:27:00,020 INFO /usr/local/bin/bench schedule
+2022-11-25 15:27:00,039 INFO /usr/local/bin/bench serve --port 8004
+2022-11-25 15:27:00,094 INFO /usr/local/bin/bench watch
+2022-11-25 15:27:00,125 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 15:27:00,150 INFO /usr/local/bin/bench worker --queue long
+2022-11-25 15:27:00,163 INFO /usr/local/bin/bench worker --queue short
+2022-11-25 15:31:40,921 INFO /usr/local/bin/bench setup socketio
+2022-11-25 15:32:23,187 INFO /usr/local/bin/bench start
+2022-11-25 15:32:25,313 INFO /usr/local/bin/bench schedule
+2022-11-25 15:32:25,418 INFO /usr/local/bin/bench worker --queue short
+2022-11-25 15:32:25,447 INFO /usr/local/bin/bench serve --port 8004
+2022-11-25 15:32:25,503 INFO /usr/local/bin/bench watch
+2022-11-25 15:32:25,651 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 15:32:25,726 INFO /usr/local/bin/bench worker --queue long
+2022-11-25 15:32:38,591 INFO /usr/local/bin/bench migrate
+2022-11-25 15:34:15,565 INFO /usr/local/bin/bench setup socketio
+2022-11-25 15:34:49,381 INFO /usr/local/bin/bench update --reset followed by bench migrate
+2022-11-25 15:35:04,652 INFO /usr/local/bin/bench update --reset
+2022-11-25 15:35:22,662 LOG pulling erpnext
+2022-11-25 15:35:22,663 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && git fetch --depth=1 --no-tags upstream version-14
+2022-11-25 15:35:34,214 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && git reset --hard upstream/version-14
+2022-11-25 15:35:34,400 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && git reflog expire --all
+2022-11-25 15:35:34,917 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && git gc --prune=all
+2022-11-25 15:37:27,239 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && find . -name "*.pyc" -delete
+2022-11-25 15:37:29,304 LOG pulling frappe
+2022-11-25 15:37:29,304 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && git fetch --depth=1 --no-tags upstream version-14
+2022-11-25 15:37:34,285 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && git reset --hard upstream/version-14
+2022-11-25 15:37:34,354 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && git reflog expire --all
+2022-11-25 15:37:34,657 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && git gc --prune=all
+2022-11-25 15:38:07,505 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && find . -name "*.pyc" -delete
+2022-11-25 15:38:14,935 LOG pulling payments
+2022-11-25 15:38:14,936 DEBUG cd /home/eorchids/frappe-bench13/apps/payments && git fetch --depth=1 --no-tags upstream develop
+2022-11-25 15:38:16,637 DEBUG cd /home/eorchids/frappe-bench13/apps/payments && git reset --hard upstream/develop
+2022-11-25 15:38:18,141 DEBUG cd /home/eorchids/frappe-bench13/apps/payments && git reflog expire --all
+2022-11-25 15:38:18,311 DEBUG cd /home/eorchids/frappe-bench13/apps/payments && git gc --prune=all
+2022-11-25 15:38:18,590 DEBUG cd /home/eorchids/frappe-bench13/apps/payments && find . -name "*.pyc" -delete
+2022-11-25 15:38:18,683 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade pip
+2022-11-25 15:38:22,634 LOG Installing frappe
+2022-11-25 15:38:22,635 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/frappe 
+2022-11-25 15:38:32,108 DEBUG cd /home/eorchids/frappe-bench13/apps/frappe && yarn install
+2022-11-25 15:38:34,084 LOG Installing erpnext
+2022-11-25 15:38:34,084 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/erpnext 
+2022-11-25 15:38:38,631 DEBUG cd /home/eorchids/frappe-bench13/apps/erpnext && yarn install
+2022-11-25 15:38:39,711 LOG Installing payments
+2022-11-25 15:38:39,711 DEBUG cd /home/eorchids/frappe-bench13 && /home/eorchids/frappe-bench13/env/bin/python -m pip install --quiet --upgrade -e /home/eorchids/frappe-bench13/apps/payments 
+2022-11-25 15:38:46,196 WARNING /usr/local/bin/bench update --reset executed with exit code 1
+2022-11-25 15:38:53,110 INFO /usr/local/bin/bench version
+2022-11-25 15:39:01,799 INFO /usr/local/bin/bench start
+2022-11-25 15:39:04,160 INFO /usr/local/bin/bench worker --queue long
+2022-11-25 15:39:04,173 INFO /usr/local/bin/bench worker --queue short
+2022-11-25 15:39:04,194 INFO /usr/local/bin/bench serve --port 8004
+2022-11-25 15:39:04,348 INFO /usr/local/bin/bench watch
+2022-11-25 15:39:04,352 INFO /usr/local/bin/bench worker --queue default
+2022-11-25 15:39:04,380 INFO /usr/local/bin/bench schedule

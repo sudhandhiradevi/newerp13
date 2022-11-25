@@ -1,9 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
-
-from six import iteritems
+# License: MIT. See LICENSE
 
 import frappe
 
@@ -42,11 +38,11 @@ def update_link_count():
 	link_count = frappe.cache().get_value("_link_count")
 
 	if link_count:
-		for key, count in iteritems(link_count):
+		for key, count in link_count.items():
 			if key[0] not in ignore_doctypes:
 				try:
 					frappe.db.sql(
-						"update `tab{0}` set idx = idx + {1} where name=%s".format(key[0], count),
+						f"update `tab{key[0]}` set idx = idx + {count} where name=%s",
 						key[1],
 						auto_commit=1,
 					)

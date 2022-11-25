@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 from datetime import datetime
 from functools import wraps
-from typing import Callable, Union
+from typing import Callable
 
 from werkzeug.wrappers import Response
 
@@ -87,9 +84,9 @@ class RateLimiter:
 
 def rate_limit(
 	key: str = None,
-	limit: Union[int, Callable] = 5,
+	limit: int | Callable = 5,
 	seconds: int = 24 * 60 * 60,
-	methods: Union[str, list] = "ALL",
+	methods: str | list = "ALL",
 	ip_based: bool = True,
 ):
 	"""Decorator to rate limit an endpoint.

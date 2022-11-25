@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import frappe
 from frappe.utils.install import add_standard_navbar_items
 

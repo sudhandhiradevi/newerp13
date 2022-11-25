@@ -5,7 +5,6 @@
 import frappe
 from frappe import _
 from frappe.utils import cint, cstr
-from six import iteritems
 
 from erpnext.accounts.report.financial_statements import (
 	get_columns,
@@ -252,7 +251,7 @@ def add_total_row_account(
 def get_report_summary(summary_data, currency):
 	report_summary = []
 
-	for label, value in iteritems(summary_data):
+	for label, value in summary_data.items():
 		report_summary.append(
 			{"value": value, "label": label, "datatype": "Currency", "currency": currency}
 		)

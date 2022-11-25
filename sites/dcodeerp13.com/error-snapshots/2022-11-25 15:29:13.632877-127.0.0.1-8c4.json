@@ -1,0 +1,723 @@
+{
+ "etype": "OperationalError",
+ "evalue": "OperationalError(1054, \"Unknown column 'document_type' in 'field list'\")",
+ "exception": {
+  "args": [
+   40,
+   49,
+   48,
+   53,
+   52,
+   44,
+   32,
+   34,
+   85,
+   110,
+   107,
+   110,
+   111,
+   119,
+   110,
+   32,
+   99,
+   111,
+   108,
+   117,
+   109,
+   110,
+   32,
+   39,
+   100,
+   111,
+   99,
+   117,
+   109,
+   101,
+   110,
+   116,
+   95,
+   116,
+   121,
+   112,
+   101,
+   39,
+   32,
+   105,
+   110,
+   32,
+   39,
+   102,
+   105,
+   101,
+   108,
+   100,
+   32,
+   108,
+   105,
+   115,
+   116,
+   39,
+   34,
+   41
+  ],
+  "errno": [
+   52,
+   48,
+   56,
+   52
+  ],
+  "with_traceback": [
+   60,
+   98,
+   117,
+   105,
+   108,
+   116,
+   45,
+   105,
+   110,
+   32,
+   109,
+   101,
+   116,
+   104,
+   111,
+   100,
+   32,
+   119,
+   105,
+   116,
+   104,
+   95,
+   116,
+   114,
+   97,
+   99,
+   101,
+   98,
+   97,
+   99,
+   107,
+   32,
+   111,
+   102,
+   32,
+   79,
+   112,
+   101,
+   114,
+   97,
+   116,
+   105,
+   111,
+   110,
+   97,
+   108,
+   69,
+   114,
+   114,
+   111,
+   114,
+   32,
+   111,
+   98,
+   106,
+   101,
+   99,
+   116,
+   62
+  ]
+ },
+ "frames": [
+  {
+   "call": "(request=<Request 'http://0.0.0.0:8004/?cmd=web_logout' [GET]>)",
+   "dump": {
+    "frappe. handler": "<module 'frappe.handler' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py'>",
+    "frappe.handler. handle": "<function handle>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "response": "None"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py",
+   "func": "application",
+   "lines": {
+    "64": "",
+    "65": "\t\telif frappe.form_dict.cmd:",
+    "66": "\t\t\tresponse = frappe.handler.handle()",
+    "67": "",
+    "68": "\t\telif request.path.startswith(\"/api/\"):"
+   },
+   "lnum": 66
+  },
+  {
+   "call": "()",
+   "dump": {
+    "cmd": "'web_logout'",
+    "data": "None",
+    "global execute_cmd": "<function execute_cmd>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py",
+   "func": "handle",
+   "lines": {
+    "43": "",
+    "44": "\tif cmd != \"login\":",
+    "45": "\t\tdata = execute_cmd(cmd)",
+    "46": "",
+    "47": "\t# data can be an empty string or list which are valid responses"
+   },
+   "lnum": 45
+  },
+  {
+   "call": "(cmd='web_logout', from_async=False)",
+   "dump": {
+    "frappe. call": "<function call>",
+    "frappe. form_dict": "{'cmd': 'web_logout'}",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "method": "<function web_logout>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py",
+   "func": "execute_cmd",
+   "lines": {
+    "81": "\t\tis_valid_http_method(method)",
+    "82": "",
+    "83": "\treturn frappe.call(method, **frappe.form_dict)",
+    "84": "",
+    "85": ""
+   },
+   "lnum": 83
+  },
+  {
+   "call": "(fn=<function web_logout>, *args=(), **kwargs={'cmd': 'web_logout'})",
+   "dump": {
+    "args": "()",
+    "fn": "<function web_logout>",
+    "newargs": "{}"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py",
+   "func": "call",
+   "lines": {
+    "1585": "\tnewargs = get_newargs(fn, kwargs)",
+    "1586": "",
+    "1587": "\treturn fn(*args, **newargs)",
+    "1588": "",
+    "1589": ""
+   },
+   "lnum": 1587
+  },
+  {
+   "call": "()",
+   "dump": {
+    "frappe. local": "<werkzeug.local.Local object>",
+    "frappe.local. login_manager": "<frappe.auth.LoginManager object>",
+    "frappe.local.login_manager. logout": "<bound method LoginManager.logout of <frappe.auth.LoginManager object>>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py",
+   "func": "web_logout",
+   "lines": {
+    "121": "@frappe.whitelist(allow_guest=True)",
+    "122": "def web_logout():",
+    "123": "\tfrappe.local.login_manager.logout()",
+    "124": "\tfrappe.db.commit()",
+    "125": "\tfrappe.respond_as_web_page("
+   },
+   "lnum": 123
+  },
+  {
+   "call": "(self=<frappe.auth.LoginManager object>, arg='', user='Administrator')",
+   "dump": {
+    "frappe. session": "{'data': {'user': 'Administrator', 'session_ip':...a75eab39fc516f40ec59f9af9482e719e1d4a3669004ebb'}",
+    "frappe.session. sid": "'c4836d87ca75eab39fc516f40ec59f9af9482e719e1d4a3669004ebb'",
+    "global delete_session": "<function delete_session>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "reason": "undefined",
+    "user": "'Administrator'"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/auth.py",
+   "func": "logout",
+   "lines": {
+    "327": "",
+    "328": "\t\tif user == frappe.session.user:",
+    "329": "\t\t\tdelete_session(frappe.session.sid, user=user, reason=\"User Manually Logged Out\")",
+    "330": "\t\t\tself.clear_cookies()",
+    "331": "\t\telse:"
+   },
+   "lnum": 329
+  },
+  {
+   "call": "(sid='c4836d87ca75eab39fc516f40ec59f9af9482e719e1d4a3669004ebb', user='Administrator', reason='User Manually Logged Out')",
+   "dump": {
+    "logout_feed": "<function logout_feed>",
+    "reason": "'User Manually Logged Out'",
+    "user": "'Administrator'"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/sessions.py",
+   "func": "delete_session",
+   "lines": {
+    "106": "\t\t\tuser = user_details[0].get(\"user\")",
+    "107": "",
+    "108": "\tlogout_feed(user, reason)",
+    "109": "\tfrappe.db.delete(\"Sessions\", {\"sid\": sid})",
+    "110": "\tfrappe.db.commit()"
+   },
+   "lnum": 108
+  },
+  {
+   "call": "(user='Administrator', reason='User Manually Logged Out')",
+   "dump": {
+    "global add_authentication_log": "<function add_authentication_log>",
+    "operation": "undefined",
+    "subject": "'Administrator logged out: <strong>User Manually Logged Out</strong>'",
+    "user": "'Administrator'"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/core/doctype/activity_log/feed.py",
+   "func": "logout_feed",
+   "lines": {
+    "59": "\tif user and user != \"Guest\":",
+    "60": "\t\tsubject = _(\"{0} logged out: {1}\").format(get_fullname(user), frappe.bold(reason))",
+    "61": "\t\tadd_authentication_log(subject, user, operation=\"Logout\")",
+    "62": "",
+    "63": ""
+   },
+   "lnum": 61
+  },
+  {
+   "call": "(subject='Administrator logged out: <strong>User Manually Logged Out</strong>', user='Administrator', operation='Logout', status='Success')",
+   "dump": {
+    ").insert": "undefined",
+    "frappe. get_doc": "<function get_doc>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "ignore_links": "undefined",
+    "ignore_permissions": "undefined",
+    "operation": "'Logout'",
+    "status": "'Success'",
+    "subject": "'Administrator logged out: <strong>User Manually Logged Out</strong>'",
+    "user": "'Administrator'"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/core/doctype/activity_log/activity_log.py",
+   "func": "add_authentication_log",
+   "lines": {
+    "41": "",
+    "42": "def add_authentication_log(subject, user, operation=\"Login\", status=\"Success\"):",
+    "43": "\tfrappe.get_doc(",
+    "44": "\t\t{",
+    "45": "\t\t\t\"doctype\": \"Activity Log\","
+   },
+   "lnum": 43
+  },
+  {
+   "call": "(self=<ActivityLog: de30c85328>, ignore_permissions=True, ignore_links=True, ignore_if_duplicate=False, ignore_mandatory=None, set_name=None, set_child_names=True)",
+   "dump": {
+    "self": "<ActivityLog: de30c85328>",
+    "self. run_before_save_methods": "<bound method Document.run_before_save_methods of <ActivityLog: de30c85328>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py",
+   "func": "insert",
+   "lines": {
+    "255": "",
+    "256": "\t\tself.flags.in_insert = True",
+    "257": "\t\tself.run_before_save_methods()",
+    "258": "\t\tself._validate()",
+    "259": "\t\tself.set_docstatus()"
+   },
+   "lnum": 257
+  },
+  {
+   "call": "(self=<ActivityLog: de30c85328>)",
+   "dump": {
+    "self": "<ActivityLog: de30c85328>",
+    "self. run_method": "<bound method Document.run_method of <ActivityLog: de30c85328>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py",
+   "func": "run_before_save_methods",
+   "lines": {
+    "1037": "",
+    "1038": "\t\tif self._action == \"save\":",
+    "1039": "\t\t\tself.run_method(\"validate\")",
+    "1040": "\t\t\tself.run_method(\"before_save\")",
+    "1041": "\t\telif self._action == \"submit\":"
+   },
+   "lnum": 1039
+  },
+  {
+   "call": "(self=<ActivityLog: de30c85328>, method='validate', *args=(), **kwargs={})",
+   "dump": {
+    "Document. hook": "<function Document.hook>",
+    "args": "()",
+    "fn": "<function Document.run_method.<locals>.fn>",
+    "global Document": "<class 'frappe.model.document.Document'>",
+    "kwargs": "{}",
+    "out": "undefined",
+    "self": "<ActivityLog: de30c85328>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py",
+   "func": "run_method",
+   "lines": {
+    "906": "",
+    "907": "\t\tfn.__name__ = str(method)",
+    "908": "\t\tout = Document.hook(fn)(self, *args, **kwargs)",
+    "909": "",
+    "910": "\t\tself.run_notifications(method)"
+   },
+   "lnum": 908
+  },
+  {
+   "call": "(self=<ActivityLog: de30c85328>, *args=(), **kwargs={})",
+   "dump": {
+    "args": "()",
+    "composed": "<function Document.hook.<locals>.compose.<locals>.runner>",
+    "kwargs": "{}",
+    "method": "'validate'",
+    "self": "<ActivityLog: de30c85328>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py",
+   "func": "composer",
+   "lines": {
+    "1258": "",
+    "1259": "\t\t\tcomposed = compose(f, *hooks)",
+    "1260": "\t\t\treturn composed(self, method, *args, **kwargs)",
+    "1261": "",
+    "1262": "\t\treturn composer"
+   },
+   "lnum": 1260
+  },
+  {
+   "call": "(self=<ActivityLog: de30c85328>, method='validate', *args=(), **kwargs={})",
+   "dump": {
+    "add_to_return_value": "<function Document.hook.<locals>.add_to_return_value>",
+    "args": "()",
+    "f": "<function apply>",
+    "kwargs": "{}",
+    "method": "'validate'",
+    "self": "<ActivityLog: de30c85328>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py",
+   "func": "runner",
+   "lines": {
+    "1242": "\t\t\t\tadd_to_return_value(self, fn(self, *args, **kwargs))",
+    "1243": "\t\t\t\tfor f in hooks:",
+    "1244": "\t\t\t\t\tadd_to_return_value(self, f(self, method, *args, **kwargs))",
+    "1245": "",
+    "1246": "\t\t\t\treturn self.__dict__.pop(\"_return_value\", None)"
+   },
+   "lnum": 1244
+  },
+  {
+   "call": "(doc=<ActivityLog: de30c85328>, method='validate')",
+   "dump": {
+    "doc": "<ActivityLog: de30c85328>",
+    "doc. doctype": "'Activity Log'",
+    "global get_documents_with_active_service_level_agreement": "<function get_documents_with_active_service_level_agreement>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py",
+   "func": "apply",
+   "lines": {
+    "458": "\t\tor frappe.flags.in_install",
+    "459": "\t\tor frappe.flags.in_setup_wizard",
+    "460": "\t\tor doc.doctype not in get_documents_with_active_service_level_agreement()",
+    "461": "\t):",
+    "462": "\t\treturn"
+   },
+   "lnum": 460
+  },
+  {
+   "call": "()",
+   "dump": {
+    "global set_documents_with_active_service_level_agreement": "<function set_documents_with_active_service_level_agreement>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py",
+   "func": "get_documents_with_active_service_level_agreement",
+   "lines": {
+    "438": "",
+    "439": "\tif sla_doctypes is None:",
+    "440": "\t\treturn set_documents_with_active_service_level_agreement()",
+    "441": "",
+    "442": "\treturn sla_doctypes"
+   },
+   "lnum": 440
+  },
+  {
+   "call": "()",
+   "dump": {
+    "fields": "undefined",
+    "frappe. get_all": "<function get_all>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "sla": "undefined"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py",
+   "func": "set_documents_with_active_service_level_agreement",
+   "lines": {
+    "445": "def set_documents_with_active_service_level_agreement():",
+    "446": "\tactive = [",
+    "447": "\t\tsla.document_type for sla in frappe.get_all(\"Service Level Agreement\", fields=[\"document_type\"])",
+    "448": "\t]",
+    "449": "\tfrappe.cache().hset(\"service_level_agreement\", \"active\", active)"
+   },
+   "lnum": 447
+  },
+  {
+   "call": "(doctype='Service Level Agreement', *args=(), **kwargs={'fields': ['document_type'], 'ignore_permissions': True, 'limit_page_length': 0})",
+   "dump": {
+    "args": "()",
+    "doctype": "'Service Level Agreement'",
+    "global get_list": "<function get_list>",
+    "kwargs": "{'fields': ['document_type'], 'ignore_permissions': True, 'limit_page_length': 0}"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py",
+   "func": "get_all",
+   "lines": {
+    "1902": "\tif not \"limit_page_length\" in kwargs:",
+    "1903": "\t\tkwargs[\"limit_page_length\"] = 0",
+    "1904": "\treturn get_list(doctype, *args, **kwargs)",
+    "1905": "",
+    "1906": ""
+   },
+   "lnum": 1904
+  },
+  {
+   "call": "(doctype='Service Level Agreement', *args=(), **kwargs={'fields': ['document_type'], 'ignore_permissions': True, 'limit_page_length': 0})",
+   "dump": {
+    ").execute": "undefined",
+    "args": "()",
+    "doctype": "'Service Level Agreement'",
+    "frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "frappe. model": "<module 'frappe.model' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/model/__init__.py'>",
+    "frappe.model. db_query": "<module 'frappe.model.db_query' from '/home/eorc...pe-bench13/apps/frappe/frappe/model/db_query.py'>",
+    "frappe.model.db_query. DatabaseQuery": "<class 'frappe.model.db_query.DatabaseQuery'>",
+    "kwargs": "{'fields': ['document_type'], 'ignore_permissions': True, 'limit_page_length': 0}"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py",
+   "func": "get_list",
+   "lines": {
+    "1874": "\timport frappe.model.db_query",
+    "1875": "",
+    "1876": "\treturn frappe.model.db_query.DatabaseQuery(doctype).execute(*args, **kwargs)",
+    "1877": "",
+    "1878": ""
+   },
+   "lnum": 1876
+  },
+  {
+   "call": "(self=<frappe.model.db_query.DatabaseQuery object>, fields=['document_type'], filters=None, or_filters=None, docstatus=None, group_by=None, order_by='KEEP_DEFAULT_ORDERING', limit_start=False, limit_page_length=0, as_list=False, with_childnames=False, debug=False, ignore_permissions=True, user=None, with_comment_count=False, join='left join', distinct=False, start=None, page_length=None, limit=None, ignore_ifnull=False, save_user_settings=False, save_user_settings_fields=False, update=None, add_total_row=None, user_settings=None, reference_doctype=None, run=True, strict=True, pluck=None, ignore_ddl=False, parent_doctype=None)",
+   "dump": {
+    "result": "undefined",
+    "self": "<frappe.model.db_query.DatabaseQuery object>",
+    "self. build_and_run": "<bound method DatabaseQuery.build_and_run of <frappe.model.db_query.DatabaseQuery object>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/db_query.py",
+   "func": "execute",
+   "lines": {
+    "170": "\t\t\treturn []",
+    "171": "",
+    "172": "\t\tresult = self.build_and_run()",
+    "173": "",
+    "174": "\t\tif with_comment_count and not as_list and self.doctype:"
+   },
+   "lnum": 172
+  },
+  {
+   "call": "(self=<frappe.model.db_query.DatabaseQuery object>)",
+   "dump": {
+    "as_dict": "undefined",
+    "debug": "undefined",
+    "frappe. db": "<frappe.database.mariadb.database.MariaDBDatabase object>",
+    "frappe.db. sql": "<bound method Database.sql of <frappe.database.mariadb.database.MariaDBDatabase object>>",
+    "global frappe": "<module 'frappe' from '/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py'>",
+    "ignore_ddl": "undefined",
+    "query": "'select `document_type`\\n\\t\\t\\tfrom `tabService Level... `tabService Level Agreement`.`modified` DESC\\n\\t\\t\\t'",
+    "run": "undefined",
+    "self": "<frappe.model.db_query.DatabaseQuery object>",
+    "self. as_list": "False",
+    "self. debug": "False",
+    "self. ignore_ddl": "False",
+    "self. run": "True",
+    "self. update": "None",
+    "update": "undefined"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/model/db_query.py",
+   "func": "build_and_run",
+   "lines": {
+    "210": "\t\t)",
+    "211": "",
+    "212": "\t\treturn frappe.db.sql(",
+    "213": "\t\t\tquery,",
+    "214": "\t\t\tas_dict=not self.as_list,"
+   },
+   "lnum": 212
+  },
+  {
+   "call": "(self=<frappe.database.mariadb.database.MariaDBDatabase object>, query='select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC', values=None, as_dict=True, as_list=0, formatted=0, debug=False, ignore_ddl=False, as_utf8=0, auto_commit=0, update=None, explain=False, run=True, pluck=False)",
+   "dump": {
+    "query": "'select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC'",
+    "self": "<frappe.database.mariadb.database.MariaDBDatabase object>",
+    "self. _cursor": "<pymysql.cursors.Cursor object>",
+    "self._cursor. execute": "<bound method Cursor.execute of <pymysql.cursors.Cursor object>>",
+    "values": "None"
+   },
+   "file": "/home/eorchids/frappe-bench13/apps/frappe/frappe/database/database.py",
+   "func": "sql",
+   "lines": {
+    "216": "",
+    "217": "\t\ttry:",
+    "218": "\t\t\tself._cursor.execute(query, values)",
+    "219": "\t\texcept Exception as e:",
+    "220": "\t\t\tif self.is_syntax_error(e):"
+   },
+   "lnum": 218
+  },
+  {
+   "call": "(self=<pymysql.cursors.Cursor object>, query='select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC', args=None)",
+   "dump": {
+    "query": "'select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC'",
+    "result": "undefined",
+    "self": "<pymysql.cursors.Cursor object>",
+    "self. _query": "<bound method Cursor._query of <pymysql.cursors.Cursor object>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/cursors.py",
+   "func": "execute",
+   "lines": {
+    "146": "        query = self.mogrify(query, args)",
+    "147": "",
+    "148": "        result = self._query(query)",
+    "149": "        self._executed = query",
+    "150": "        return result"
+   },
+   "lnum": 148
+  },
+  {
+   "call": "(self=<pymysql.cursors.Cursor object>, q='select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC')",
+   "dump": {
+    "conn": "<pymysql.connections.Connection object>",
+    "conn. query": "<bound method Connection.query of <pymysql.connections.Connection object>>",
+    "q": "'select `document_type`\\n\\t\\t\\tfrom `tabService Level...r by `tabService Level Agreement`.`modified` DESC'"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/cursors.py",
+   "func": "_query",
+   "lines": {
+    "308": "        self._last_executed = q",
+    "309": "        self._clear_result()",
+    "310": "        conn.query(q)",
+    "311": "        self._do_get_result()",
+    "312": "        return self.rowcount"
+   },
+   "lnum": 310
+  },
+  {
+   "call": "(self=<pymysql.connections.Connection object>, sql=b'select `document_type`\\n\\t\\t\\tfrom `tabService... by `tabService Level Agreement`.`modified` DESC', unbuffered=False)",
+   "dump": {
+    "self": "<pymysql.connections.Connection object>",
+    "self. _affected_rows": "0",
+    "self. _read_query_result": "<bound method Connection._read_query_result of <pymysql.connections.Connection object>>",
+    "unbuffered": "False"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py",
+   "func": "query",
+   "lines": {
+    "546": "            sql = sql.encode(self.encoding, \"surrogateescape\")",
+    "547": "        self._execute_command(COMMAND.COM_QUERY, sql)",
+    "548": "        self._affected_rows = self._read_query_result(unbuffered=unbuffered)",
+    "549": "        return self._affected_rows",
+    "550": ""
+   },
+   "lnum": 548
+  },
+  {
+   "call": "(self=<pymysql.connections.Connection object>, unbuffered=False)",
+   "dump": {
+    "result": "<pymysql.connections.MySQLResult object>",
+    "result. read": "<bound method MySQLResult.read of <pymysql.connections.MySQLResult object>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py",
+   "func": "_read_query_result",
+   "lines": {
+    "773": "        else:",
+    "774": "            result = MySQLResult(self)",
+    "775": "            result.read()",
+    "776": "        self._result = result",
+    "777": "        if result.server_status is not None:"
+   },
+   "lnum": 775
+  },
+  {
+   "call": "(self=<pymysql.connections.MySQLResult object>)",
+   "dump": {
+    "first_packet": "undefined",
+    "self": "<pymysql.connections.MySQLResult object>",
+    "self. connection": "None",
+    "self.connection._read_packet": "undefined"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py",
+   "func": "read",
+   "lines": {
+    "1154": "    def read(self):",
+    "1155": "        try:",
+    "1156": "            first_packet = self.connection._read_packet()",
+    "1157": "",
+    "1158": "            if first_packet.is_ok_packet():"
+   },
+   "lnum": 1156
+  },
+  {
+   "call": "(self=<pymysql.connections.Connection object>, packet_type=<class 'pymysql.protocol.MysqlPacket'>)",
+   "dump": {
+    "packet": "<pymysql.protocol.MysqlPacket object>",
+    "packet. raise_for_error": "<bound method MysqlPacket.raise_for_error of <pymysql.protocol.MysqlPacket object>>"
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py",
+   "func": "_read_packet",
+   "lines": {
+    "723": "            if self._result is not None and self._result.unbuffered_active is True:",
+    "724": "                self._result.unbuffered_active = False",
+    "725": "            packet.raise_for_error()",
+    "726": "        return packet",
+    "727": ""
+   },
+   "lnum": 725
+  },
+  {
+   "call": "(self=<pymysql.protocol.MysqlPacket object>)",
+   "dump": {
+    "err. raise_mysql_exception": "<function raise_mysql_exception>",
+    "global err": "<module 'pymysql.err' from '/home/eorchids/frapp...env/lib/python3.10/site-packages/pymysql/err.py'>",
+    "self": "<pymysql.protocol.MysqlPacket object>",
+    "self. _data": "b\"\\xff\\x1e\\x04#42S22Unknown column 'document_type' in 'field list'\""
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/protocol.py",
+   "func": "raise_for_error",
+   "lines": {
+    "219": "        if DEBUG:",
+    "220": "            print(\"errno =\", errno)",
+    "221": "        err.raise_mysql_exception(self._data)",
+    "222": "",
+    "223": "    def dump(self):"
+   },
+   "lnum": 221
+  },
+  {
+   "call": "(data=b\"\\xff\\x1e\\x04#42S22Unknown column 'document_type' in 'field list'\")",
+   "dump": {
+    "errno": "1054",
+    "errorclass": "<class 'pymysql.err.OperationalError'>",
+    "errval": "\"Unknown column 'document_type' in 'field list'\""
+   },
+   "file": "/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/err.py",
+   "func": "raise_mysql_exception",
+   "lines": {
+    "139": "    errval = data[9:].decode(\"utf-8\", \"replace\")",
+    "140": "    errorclass = error_map.get(errno)",
+    "141": "    if errorclass is None:",
+    "142": "        errorclass = InternalError if errno < 1000 else OperationalError",
+    "143": "    raise errorclass(errno, errval)"
+   },
+   "lnum": 143
+  }
+ ],
+ "locals": {
+  "data": "b\"\\xff\\x1e\\x04#42S22Unknown column 'document_type' in 'field list'\"",
+  "errno": "1054",
+  "errorclass": "<class 'pymysql.err.OperationalError'>",
+  "errval": "Unknown column 'document_type' in 'field list'"
+ },
+ "pyver": "Python 3.10.6: /home/eorchids/frappe-bench13/env/bin/python (prefix: /home/eorchids/frappe-bench13/env)",
+ "timestamp": "2022-11-25 15:29:13.632945",
+ "traceback": "Traceback (most recent call last):\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/app.py\", line 66, in application\n    response = frappe.handler.handle()\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py\", line 45, in handle\n    data = execute_cmd(cmd)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py\", line 83, in execute_cmd\n    return frappe.call(method, **frappe.form_dict)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py\", line 1587, in call\n    return fn(*args, **newargs)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/handler.py\", line 123, in web_logout\n    frappe.local.login_manager.logout()\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/auth.py\", line 329, in logout\n    delete_session(frappe.session.sid, user=user, reason=\"User Manually Logged Out\")\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/sessions.py\", line 108, in delete_session\n    logout_feed(user, reason)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/core/doctype/activity_log/feed.py\", line 61, in logout_feed\n    add_authentication_log(subject, user, operation=\"Logout\")\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/core/doctype/activity_log/activity_log.py\", line 43, in add_authentication_log\n    frappe.get_doc(\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py\", line 257, in insert\n    self.run_before_save_methods()\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py\", line 1039, in run_before_save_methods\n    self.run_method(\"validate\")\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py\", line 908, in run_method\n    out = Document.hook(fn)(self, *args, **kwargs)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py\", line 1260, in composer\n    return composed(self, method, *args, **kwargs)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/document.py\", line 1244, in runner\n    add_to_return_value(self, f(self, method, *args, **kwargs))\n  File \"/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py\", line 460, in apply\n    or doc.doctype not in get_documents_with_active_service_level_agreement()\n  File \"/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py\", line 440, in get_documents_with_active_service_level_agreement\n    return set_documents_with_active_service_level_agreement()\n  File \"/home/eorchids/frappe-bench13/apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.py\", line 447, in set_documents_with_active_service_level_agreement\n    sla.document_type for sla in frappe.get_all(\"Service Level Agreement\", fields=[\"document_type\"])\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py\", line 1904, in get_all\n    return get_list(doctype, *args, **kwargs)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/__init__.py\", line 1876, in get_list\n    return frappe.model.db_query.DatabaseQuery(doctype).execute(*args, **kwargs)\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/db_query.py\", line 172, in execute\n    result = self.build_and_run()\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/model/db_query.py\", line 212, in build_and_run\n    return frappe.db.sql(\n  File \"/home/eorchids/frappe-bench13/apps/frappe/frappe/database/database.py\", line 218, in sql\n    self._cursor.execute(query, values)\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/cursors.py\", line 148, in execute\n    result = self._query(query)\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/cursors.py\", line 310, in _query\n    conn.query(q)\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py\", line 548, in query\n    self._affected_rows = self._read_query_result(unbuffered=unbuffered)\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py\", line 775, in _read_query_result\n    result.read()\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py\", line 1156, in read\n    first_packet = self.connection._read_packet()\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/connections.py\", line 725, in _read_packet\n    packet.raise_for_error()\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/protocol.py\", line 221, in raise_for_error\n    err.raise_mysql_exception(self._data)\n  File \"/home/eorchids/frappe-bench13/env/lib/python3.10/site-packages/pymysql/err.py\", line 143, in raise_mysql_exception\n    raise errorclass(errno, errval)\npymysql.err.OperationalError: (1054, \"Unknown column 'document_type' in 'field list'\")\n"
+}

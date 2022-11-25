@@ -1,7 +1,5 @@
-# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# License: GNU General Public License v3. See license.txt
-
-from __future__ import unicode_literals
+# Copyright (c) 2021, Frappe Technologies Pvt. Ltd. and Contributors
+# License: MIT. See LICENSE
 
 import functools
 import re
@@ -20,6 +18,7 @@ def load_address_and_contact(doc, key=None):
 		["Dynamic Link", "parenttype", "=", "Address"],
 	]
 	address_list = frappe.get_list("Address", filters=filters, fields=["*"], order_by="creation asc")
+
 	address_list = [a.update({"display": get_address_display(a)}) for a in address_list]
 
 	address_list = sorted(
@@ -39,16 +38,16 @@ def load_address_and_contact(doc, key=None):
 		["Dynamic Link", "link_name", "=", doc.name],
 		["Dynamic Link", "parenttype", "=", "Contact"],
 	]
-	contact_list = frappe.get_all("Contact", filters=filters, fields=["*"])
+	contact_list = frappe.get_list("Contact", filters=filters, fields=["*"])
 
 	for contact in contact_list:
-		contact["email_ids"] = frappe.get_list(
+		contact["email_ids"] = frappe.get_all(
 			"Contact Email",
 			filters={"parenttype": "Contact", "parent": contact.name, "is_primary": 0},
 			fields=["email_id"],
 		)
 
-		contact["phone_nos"] = frappe.get_list(
+		contact["phone_nos"] = frappe.get_all(
 			"Contact Phone",
 			filters={
 				"parenttype": "Contact",
@@ -117,9 +116,7 @@ def get_permission_query_conditions(doctype):
 		# when everything is not permitted
 		for df in links.get("not_permitted_links"):
 			# like ifnull(customer, '')='' and ifnull(supplier, '')=''
-			conditions.append(
-				"ifnull(`tab{doctype}`.`{fieldname}`, '')=''".format(doctype=doctype, fieldname=df.fieldname)
-			)
+			conditions.append(f"ifnull(`tab{doctype}`.`{df.fieldname}`, '')=''")
 
 		return "( " + " and ".join(conditions) + " )"
 
@@ -128,9 +125,7 @@ def get_permission_query_conditions(doctype):
 
 		for df in links.get("permitted_links"):
 			# like ifnull(customer, '')!='' or ifnull(supplier, '')!=''
-			conditions.append(
-				"ifnull(`tab{doctype}`.`{fieldname}`, '')!=''".format(doctype=doctype, fieldname=df.fieldname)
-			)
+			conditions.append(f"ifnull(`tab{doctype}`.`{df.fieldname}`, '')!=''")
 
 		return "( " + " or ".join(conditions) + " )"
 
@@ -170,29 +165,35 @@ def delete_contact_and_address(doctype, docname):
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
-def filter_dynamic_link_doctypes(doctype, txt, searchfield, start, page_len, filters):
-	if not txt:
-		txt = ""
+def filter_dynamic_link_doctypes(
+	doctype, txt: str, searchfield, start, page_len, filters: dict
+) -> list[list[str]]:
+	from frappe.permissions import get_doctypes_with_read
 
-	doctypes = frappe.db.get_all(
-		"DocField", filters=filters, fields=["parent"], distinct=True, as_list=True
+	txt = txt or ""
+	filters = filters or {}
+
+	_doctypes_from_df = frappe.get_all(
+		"DocField",
+		filters=filters,
+		pluck="parent",
+		distinct=True,
+		order_by=None,
 	)
+	doctypes_from_df = {d for d in _doctypes_from_df if txt.lower() in _(d).lower()}
 
-	doctypes = tuple([d for d in doctypes if re.search(txt + ".*", _(d[0]), re.IGNORECASE)])
+	filters.update({"dt": ("not in", doctypes_from_df)})
+	_doctypes_from_cdf = frappe.get_all(
+		"Custom Field", filters=filters, pluck="dt", distinct=True, order_by=None
+	)
+	doctypes_from_cdf = {d for d in _doctypes_from_cdf if txt.lower() in _(d).lower()}
 
-	filters.update({"dt": ("not in", [d[0] for d in doctypes])})
+	all_doctypes = doctypes_from_df.union(doctypes_from_cdf)
+	allowed_doctypes = set(get_doctypes_with_read())
 
-	_doctypes = frappe.db.get_all("Custom Field", filters=filters, fields=["dt"], as_list=True)
+	valid_doctypes = sorted(all_doctypes.intersection(allowed_doctypes))
 
-	_doctypes = tuple([d for d in _doctypes if re.search(txt + ".*", _(d[0]), re.IGNORECASE)])
-
-	all_doctypes = [d[0] for d in doctypes + _doctypes]
-	allowed_doctypes = frappe.permissions.get_doctypes_with_read()
-
-	valid_doctypes = sorted(set(all_doctypes).intersection(set(allowed_doctypes)))
-	valid_doctypes = [[doctype] for doctype in valid_doctypes]
-
-	return valid_doctypes
+	return [[doctype] for doctype in valid_doctypes]
 
 
 def set_link_title(doc):

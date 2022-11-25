@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2017, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# Copyright (c) 2021, Frappe Technologies and contributors
+# License: MIT. See LICENSE
 
 import json
 
@@ -11,7 +8,6 @@ from frappe import _
 from frappe.core.utils import find
 from frappe.desk.form.linked_with import get_linked_doctypes
 from frappe.model.document import Document
-from frappe.permissions import get_valid_perms, update_permission_property
 from frappe.utils import cstr
 
 
@@ -31,7 +27,7 @@ class UserPermission(Document):
 	def validate_user_permission(self):
 		"""checks for duplicate user permission records"""
 
-		duplicate_exists = frappe.db.get_all(
+		duplicate_exists = frappe.get_all(
 			self.doctype,
 			filters={
 				"allow": self.allow,
@@ -207,12 +203,18 @@ def check_applicable_doc_perm(user, doctype, docname):
 @frappe.whitelist()
 def clear_user_permissions(user, for_doctype):
 	frappe.only_for("System Manager")
-	total = frappe.db.count("User Permission", filters=dict(user=user, allow=for_doctype))
+	total = frappe.db.count("User Permission", {"user": user, "allow": for_doctype})
+
 	if total:
-		frappe.db.sql(
-			"DELETE FROM `tabUser Permission` WHERE `user`=%s AND `allow`=%s", (user, for_doctype)
+		frappe.db.delete(
+			"User Permission",
+			{
+				"allow": for_doctype,
+				"user": user,
+			},
 		)
 		frappe.clear_cache()
+
 	return total
 
 
@@ -220,7 +222,7 @@ def clear_user_permissions(user, for_doctype):
 def add_user_permissions(data):
 	"""Add and update the user permissions"""
 	frappe.only_for("System Manager")
-	if isinstance(data, frappe.string_types):
+	if isinstance(data, str):
 		data = json.loads(data)
 	data = frappe._dict(data)
 
@@ -288,38 +290,38 @@ def insert_user_perm(
 
 def remove_applicable(perm_applied_docs, user, doctype, docname):
 	for applicable_for in perm_applied_docs:
-		frappe.db.sql(
-			"""DELETE FROM `tabUser Permission`
-			WHERE `user`=%s
-			AND `applicable_for`=%s
-			AND `allow`=%s
-			AND `for_value`=%s
-		""",
-			(user, applicable_for, doctype, docname),
+		frappe.db.delete(
+			"User Permission",
+			{
+				"applicable_for": applicable_for,
+				"for_value": docname,
+				"allow": doctype,
+				"user": user,
+			},
 		)
 
 
 def remove_apply_to_all(user, doctype, docname):
-	frappe.db.sql(
-		"""DELETE from `tabUser Permission`
-		WHERE `user`=%s
-		AND `apply_to_all_doctypes`=1
-		AND `allow`=%s
-		AND `for_value`=%s
-	""",
-		(user, doctype, docname),
+	frappe.db.delete(
+		"User Permission",
+		{
+			"apply_to_all_doctypes": 1,
+			"for_value": docname,
+			"allow": doctype,
+			"user": user,
+		},
 	)
 
 
 def update_applicable(already_applied, to_apply, user, doctype, docname):
 	for applied in already_applied:
 		if applied not in to_apply:
-			frappe.db.sql(
-				"""DELETE FROM `tabUser Permission`
-				WHERE `user`=%s
-				AND `applicable_for`=%s
-				AND `allow`=%s
-				AND `for_value`=%s
-			""",
-				(user, applied, doctype, docname),
+			frappe.db.delete(
+				"User Permission",
+				{
+					"applicable_for": applied,
+					"for_value": docname,
+					"allow": doctype,
+					"user": user,
+				},
 			)

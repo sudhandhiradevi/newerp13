@@ -1,17 +1,14 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2018, Frappe Technologies and Contributors
-# See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import hashlib
-import unittest
 
 import frappe
+from frappe.tests.utils import FrappeTestCase
 
 test_records = []
 
 
-class TestTransactionLog(unittest.TestCase):
+class TestTransactionLog(FrappeTestCase):
 	def test_validate_chaining(self):
 		frappe.get_doc(
 			{

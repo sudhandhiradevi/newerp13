@@ -1,15 +1,11 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2019, Frappe Technologies and contributors
-# For license information, please see license.txt
-
-from __future__ import unicode_literals
+# License: MIT. See LICENSE
 
 import frappe
 from frappe import _
 from frappe.desk.doctype.notification_settings.notification_settings import (
 	is_email_notifications_enabled_for_type,
 	is_notifications_enabled,
-	set_seen_value,
 )
 from frappe.model.document import Document
 
@@ -22,7 +18,15 @@ class NotificationLog(Document):
 			try:
 				send_notification_email(self)
 			except frappe.OutgoingEmailError:
-				frappe.log_error(message=frappe.get_traceback(), title=_("Failed to send notification email"))
+				self.log_error(_("Failed to send notification email"))
+
+	@staticmethod
+	def clear_old_logs(days=180):
+		from frappe.query_builder import Interval
+		from frappe.query_builder.functions import Now
+
+		table = frappe.qb.DocType("Notification Log")
+		frappe.db.delete(table, filters=(table.modified < (Now() - Interval(days=days))))
 
 
 def get_permission_query_conditions(for_user):
@@ -32,7 +36,7 @@ def get_permission_query_conditions(for_user):
 	if for_user == "Administrator":
 		return
 
-	return """(`tabNotification Log`.for_user = {user})""".format(user=frappe.db.escape(for_user))
+	return f"""(`tabNotification Log`.for_user = {frappe.db.escape(for_user)})"""
 
 
 def get_title(doctype, docname, title_field=None):
@@ -43,21 +47,25 @@ def get_title(doctype, docname, title_field=None):
 
 
 def get_title_html(title):
-	return '<b class="subject-title">{0}</b>'.format(title)
+	return f'<b class="subject-title">{title}</b>'
 
 
-def enqueue_create_notification(users, doc):
+def enqueue_create_notification(users: list[str] | str, doc: dict):
+	"""Send notification to users.
+
+	users: list of user emails or string of users with comma separated emails
+	doc: contents of `Notification` doc
 	"""
-	During installation of new site, enqueue_create_notification tries to connect to Redis.
-	This breaks new site creation if Redis server is not running.
-	We do not need any notifications in fresh installation
-	"""
+
+	# During installation of new site, enqueue_create_notification tries to connect to Redis.
+	# This breaks new site creation if Redis server is not running.
+	# We do not need any notifications in fresh installation
 	if frappe.flags.in_install:
 		return
 
 	doc = frappe._dict(doc)
 
-	if isinstance(users, frappe.string_types):
+	if isinstance(users, str):
 		users = [user.strip() for user in users.split(",") if user.strip()]
 	users = list(set(users))
 
@@ -70,21 +78,23 @@ def enqueue_create_notification(users, doc):
 
 
 def make_notification_logs(doc, users):
-	from frappe.social.doctype.energy_point_settings.energy_point_settings import (
-		is_energy_point_enabled,
+	for user in _get_user_ids(users):
+		notification = frappe.new_doc("Notification Log")
+		notification.update(doc)
+		notification.for_user = user
+		if (
+			notification.for_user != notification.from_user
+			or doc.type == "Energy Point"
+			or doc.type == "Alert"
+		):
+			notification.insert(ignore_permissions=True)
+
+
+def _get_user_ids(user_emails):
+	user_names = frappe.db.get_values(
+		"User", {"enabled": 1, "email": ("in", user_emails)}, "name", pluck=True
 	)
-
-	for user in users:
-		if frappe.db.exists("User", {"email": user, "enabled": 1}):
-			if is_notifications_enabled(user):
-				if doc.type == "Energy Point" and not is_energy_point_enabled():
-					return
-
-				_doc = frappe.new_doc("Notification Log")
-				_doc.update(doc)
-				_doc.for_user = user
-				if _doc.for_user != _doc.from_user or doc.type == "Energy Point" or doc.type == "Alert":
-					_doc.insert(ignore_permissions=True)
+	return [user for user in user_names if is_notifications_enabled(user)]
 
 
 def send_notification_email(doc):
@@ -94,12 +104,16 @@ def send_notification_email(doc):
 
 	from frappe.utils import get_url_to_form, strip_html
 
+	email = frappe.db.get_value("User", doc.for_user, "email")
+	if not email:
+		return
+
 	doc_link = get_url_to_form(doc.document_type, doc.document_name)
 	header = get_email_header(doc)
 	email_subject = strip_html(doc.subject)
 
 	frappe.sendmail(
-		recipients=doc.for_user,
+		recipients=email,
 		subject=email_subject,
 		template="new_notification",
 		args={
@@ -128,8 +142,24 @@ def get_email_header(doc):
 
 
 @frappe.whitelist()
+def get_notification_logs(limit=20):
+	notification_logs = frappe.db.get_list(
+		"Notification Log", fields=["*"], limit=limit, order_by="modified desc"
+	)
+
+	users = [log.from_user for log in notification_logs]
+	users = [*set(users)]  # remove duplicates
+	user_info = frappe._dict()
+
+	for user in users:
+		frappe.utils.add_user_info(user, user_info)
+
+	return {"notification_logs": notification_logs, "user_info": user_info}
+
+
+@frappe.whitelist()
 def mark_all_as_read():
-	unread_docs_list = frappe.db.get_all(
+	unread_docs_list = frappe.get_all(
 		"Notification Log", filters={"read": 0, "for_user": frappe.session.user}
 	)
 	unread_docnames = [doc.name for doc in unread_docs_list]

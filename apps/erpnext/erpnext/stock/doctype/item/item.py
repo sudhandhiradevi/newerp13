@@ -3,7 +3,7 @@
 
 import copy
 import json
-from typing import List
+from typing import Dict, List, Optional
 
 import frappe
 from frappe import _
@@ -98,7 +98,6 @@ class Item(Document):
 		self.validate_barcode()
 		self.validate_warehouse_for_reorder()
 		self.update_bom_item_desc()
-		self.synced_with_hub = 0
 
 		self.validate_has_variants()
 		self.validate_attributes_in_variants()
@@ -233,10 +232,10 @@ class Item(Document):
 
 	def clear_retain_sample(self):
 		if not self.has_batch_no:
-			self.retain_sample = None
+			self.retain_sample = False
 
 		if not self.retain_sample:
-			self.sample_quantity = None
+			self.sample_quantity = 0
 
 	def add_default_uom_in_conversion_factor_table(self):
 		if not self.is_new() and self.has_value_changed("stock_uom"):
@@ -462,7 +461,7 @@ class Item(Document):
 			frappe.msgprint(
 				_("It can take upto few hours for accurate stock values to be visible after merging items."),
 				indicator="orange",
-				title="Note",
+				title=_("Note"),
 			)
 
 		if self.published_in_website:
@@ -888,25 +887,38 @@ class Item(Document):
 		if self.is_new():
 			return
 
-		fields = ("has_serial_no", "is_stock_item", "valuation_method", "has_batch_no")
+		restricted_fields = ("has_serial_no", "is_stock_item", "valuation_method", "has_batch_no")
 
-		values = frappe.db.get_value("Item", self.name, fields, as_dict=True)
+		values = frappe.db.get_value("Item", self.name, restricted_fields, as_dict=True)
+		if not values:
+			return
+
 		if not values.get("valuation_method") and self.get("valuation_method"):
 			values["valuation_method"] = (
 				frappe.db.get_single_value("Stock Settings", "valuation_method") or "FIFO"
 			)
 
-		if values:
-			for field in fields:
-				if cstr(self.get(field)) != cstr(values.get(field)):
-					if self.check_if_linked_document_exists(field):
-						frappe.throw(
-							_(
-								"As there are existing transactions against item {0}, you can not change the value of {1}"
-							).format(self.name, frappe.bold(self.meta.get_label(field)))
-						)
+		changed_fields = [
+			field for field in restricted_fields if cstr(self.get(field)) != cstr(values.get(field))
+		]
+		if not changed_fields:
+			return
 
-	def check_if_linked_document_exists(self, field):
+		if linked_doc := self._get_linked_submitted_documents(changed_fields):
+			changed_field_labels = [frappe.bold(self.meta.get_label(f)) for f in changed_fields]
+			msg = _(
+				"As there are existing submitted transactions against item {0}, you can not change the value of {1}."
+			).format(self.name, ", ".join(changed_field_labels))
+
+			if linked_doc and isinstance(linked_doc, dict):
+				msg += "<br>"
+				msg += _("Example of a linked document: {0}").format(
+					frappe.get_desk_link(linked_doc.doctype, linked_doc.docname)
+				)
+
+			frappe.throw(msg, title=_("Linked with submitted documents"))
+
+	def _get_linked_submitted_documents(self, changed_fields: List[str]) -> Optional[Dict[str, str]]:
 		linked_doctypes = [
 			"Delivery Note Item",
 			"Sales Invoice Item",
@@ -919,30 +931,49 @@ class Item(Document):
 
 		# For "Is Stock Item", following doctypes is important
 		# because reserved_qty, ordered_qty and requested_qty updated from these doctypes
-		if field == "is_stock_item":
+		if "is_stock_item" in changed_fields:
 			linked_doctypes += [
 				"Sales Order Item",
 				"Purchase Order Item",
 				"Material Request Item",
 				"Product Bundle",
+				"BOM",
 			]
 
 		for doctype in linked_doctypes:
 			filters = {"item_code": self.name, "docstatus": 1}
 
-			if doctype == "Product Bundle":
-				filters = {"new_item_code": self.name}
+			if doctype in ("Product Bundle", "BOM"):
+				if doctype == "Product Bundle":
+					filters = {"new_item_code": self.name}
+					fieldname = "new_item_code as docname"
+				else:
+					filters = {"item": self.name, "docstatus": 1}
+					fieldname = "name as docname"
 
-			if doctype in (
+				if linked_doc := frappe.db.get_value(doctype, filters, fieldname, as_dict=True):
+					return linked_doc.update({"doctype": doctype})
+
+			elif doctype in (
 				"Purchase Invoice Item",
 				"Sales Invoice Item",
 			):
 				# If Invoice has Stock impact, only then consider it.
-				if self.stock_ledger_created():
-					return True
+				if linked_doc := frappe.db.get_value(
+					"Stock Ledger Entry",
+					{"item_code": self.name, "is_cancelled": 0},
+					["voucher_no as docname", "voucher_type as doctype"],
+					as_dict=True,
+				):
+					return linked_doc
 
-			elif frappe.db.get_value(doctype, filters):
-				return True
+			elif linked_doc := frappe.db.get_value(
+				doctype,
+				filters,
+				["parent as docname", "parenttype as doctype"],
+				as_dict=True,
+			):
+				return linked_doc
 
 	def validate_auto_reorder_enabled_in_stock_settings(self):
 		if self.reorder_levels:
@@ -1133,7 +1164,7 @@ def check_stock_uom_with_bin(item, stock_uom):
 
 	bin_list = frappe.db.sql(
 		"""
-			select * from tabBin where item_code = %s
+			select * from `tabBin` where item_code = %s
 				and (reserved_qty > 0 or ordered_qty > 0 or indented_qty > 0 or planned_qty > 0)
 				and stock_uom != %s
 			""",
@@ -1149,7 +1180,7 @@ def check_stock_uom_with_bin(item, stock_uom):
 		)
 
 	# No SLE or documents against item. Bin UOM can be changed safely.
-	frappe.db.sql("""update tabBin set stock_uom=%s where item_code=%s""", (stock_uom, item))
+	frappe.db.sql("""update `tabBin` set stock_uom=%s where item_code=%s""", (stock_uom, item))
 
 
 def get_item_defaults(item_code, company):

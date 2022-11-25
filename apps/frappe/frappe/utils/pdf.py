@@ -1,7 +1,5 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
+# License: MIT. See LICENSE
 import io
 import os
 import re
@@ -9,14 +7,13 @@ import subprocess
 from distutils.version import LooseVersion
 
 import pdfkit
-import six
 from bs4 import BeautifulSoup
-from PyPDF2 import PdfFileReader, PdfFileWriter
+from PyPDF2 import PdfReader, PdfWriter
 
 import frappe
 from frappe import _
 from frappe.utils import scrub_urls
-from frappe.utils.jinja import is_rtl
+from frappe.utils.jinja_globals import bundled_asset, is_rtl
 
 PDF_CONTENT_ERRORS = [
 	"ContentNotFoundError",
@@ -26,7 +23,7 @@ PDF_CONTENT_ERRORS = [
 ]
 
 
-def get_pdf(html, options=None, output=None):
+def get_pdf(html, options=None, output: PdfWriter | None = None):
 	html = scrub_urls(html)
 	html, options = prepare_options(html, options)
 
@@ -38,19 +35,19 @@ def get_pdf(html, options=None, output=None):
 
 	try:
 		# Set filename property to false, so no file is actually created
-		filedata = pdfkit.from_string(html, False, options=options or {})
+		filedata = pdfkit.from_string(html, options=options or {}, verbose=True)
 
-		# https://pythonhosted.org/PyPDF2/PdfFileReader.html
-		# create in-memory binary streams from filedata and create a PdfFileReader object
-		reader = PdfFileReader(io.BytesIO(filedata))
+		# create in-memory binary streams from filedata and create a PdfReader object
+		reader = PdfReader(io.BytesIO(filedata))
 	except OSError as e:
 		if any([error in str(e) for error in PDF_CONTENT_ERRORS]):
 			if not filedata:
+				print(html, options)
 				frappe.throw(_("PDF generation failed because of broken image links"))
 
 			# allow pdfs with missing images if file got created
-			if output:  # output is a PdfFileWriter object
-				output.appendPagesFromReader(reader)
+			if output:
+				output.append_pages_from_reader(reader)
 		else:
 			raise
 	finally:
@@ -58,15 +55,13 @@ def get_pdf(html, options=None, output=None):
 
 	if "password" in options:
 		password = options["password"]
-		if six.PY2:
-			password = frappe.safe_encode(password)
 
 	if output:
-		output.appendPagesFromReader(reader)
+		output.append_pages_from_reader(reader)
 		return output
 
-	writer = PdfFileWriter()
-	writer.appendPagesFromReader(reader)
+	writer = PdfWriter()
+	writer.append_pages_from_reader(reader)
 
 	if "password" in options:
 		writer.encrypt(password)
@@ -139,13 +134,13 @@ def get_cookie_options():
 	options = {}
 	if frappe.session and frappe.session.sid and hasattr(frappe.local, "request"):
 		# Use wkhtmltopdf's cookie-jar feature to set cookies and restrict them to host domain
-		cookiejar = "/tmp/{}.jar".format(frappe.generate_hash())
+		cookiejar = f"/tmp/{frappe.generate_hash()}.jar"
 
 		# Remove port from request.host
 		# https://werkzeug.palletsprojects.com/en/0.16.x/wrappers/#werkzeug.wrappers.BaseRequest.host
 		domain = frappe.utils.get_host_name().split(":", 1)[0]
 		with open(cookiejar, "w") as f:
-			f.write("sid={}; Domain={};\n".format(frappe.session.sid, domain))
+			f.write(f"sid={frappe.session.sid}; Domain={domain};\n")
 
 		options["cookie-jar"] = cookiejar
 
@@ -169,6 +164,8 @@ def read_options_from_html(html):
 		"page-size",
 		"header-spacing",
 		"orientation",
+		"page-width",
+		"page-height",
 	):
 		try:
 			pattern = re.compile(r"(\.print-format)([\S|\s][^}]*?)(" + str(attr) + r":)(.+)(mm;)")
@@ -187,7 +184,8 @@ def prepare_header_footer(soup):
 	head = soup.find("head").contents
 	styles = soup.find_all("style")
 
-	css = frappe.read_file(os.path.join(frappe.local.sites_path, "assets/css/printview.css"))
+	print_css = bundled_asset("print.bundle.css").lstrip("/")
+	css = frappe.read_file(os.path.join(frappe.local.sites_path, print_css))
 
 	# extract header and footer
 	for html_id in ("header-html", "footer-html"):
@@ -212,7 +210,7 @@ def prepare_header_footer(soup):
 			)
 
 			# create temp file
-			fname = os.path.join("/tmp", "frappe-pdf-{0}.html".format(frappe.generate_hash()))
+			fname = os.path.join("/tmp", f"frappe-pdf-{frappe.generate_hash()}.html")
 			with open(fname, "wb") as f:
 				f.write(html.encode("utf-8"))
 

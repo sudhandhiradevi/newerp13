@@ -1,14 +1,11 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
-# MIT License. See license.txt
-from __future__ import unicode_literals
-
-import unittest
-
+# License: MIT. See LICENSE
 import frappe
 from frappe.defaults import *
+from frappe.tests.utils import FrappeTestCase
 
 
-class TestDefaults(unittest.TestCase):
+class TestDefaults(FrappeTestCase):
 	def test_global(self):
 		clear_user_default("key1")
 		set_global_default("key1", "value1")
